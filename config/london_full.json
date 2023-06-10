@@ -1,0 +1,9 @@
+{
+    "data_path": "./planet_-0.418,51.37_0.268,51.647.osm.xz",
+    "dest_path": "./test_render.svg",
+    "top_left_lon": -0.418,
+    "top_left_lat": 51.647,
+    "px_per_deg": 18692,
+    "width_px": 20000,
+    "height_px": 20000
+}
