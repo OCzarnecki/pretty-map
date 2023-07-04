@@ -1,9 +1,9 @@
 {
     "data_path": "./planet_-1.27955,51.75482_-1.23672,51.77211.osm.xz",
     "dest_path": "./stannes.svg",
-    "top_left_lon": -1.26475,
-    "top_left_lat": 51.76358,
-    "px_per_deg": 18692,
-    "width_px": 200,
-    "height_px": 200
+    "top_left_lon": -1.27955,
+    "top_left_lat": 51.77211,
+    "px_per_deg": 253987,
+    "width_px": 11760,
+    "height_px": 6480
 }
