@@ -1,6 +1,7 @@
 *.svg
 *.png
 *.osm.xz
+*.osm
 *.icc
 
 __pycache__/

@@ -13,15 +13,21 @@ class Generator:
             self.layers[z] = []
         self.layers[z] += el
 
-    def _add_element(self, z, name: str, **kwargs):
+    def _add_element(self, z, name: str, closed: bool = True, **kwargs):
         el_str = []
         el_str += b'<' + name.encode('utf8')
         for k, v in kwargs.items():
-            el_str += b' ' + k.encode('utf8') + b'="'
+            el_str += b' ' + k.replace('_', '-').encode('utf8') + b'="'
             el_str += v
             el_str += b'"'
-        el_str += b'/>\n'
+        if closed:
+            el_str += b'/>\n'
+        else:
+            el_str += b'>\n'
         self._add_str(z, el_str)
+
+    def _close_element(self, z, name: str):
+        self._add_str(z, b'</' + name.encode('utf8') + b'>\n')
 
     def path(self, z=0, **kwargs):
         return SVGPath(self, z, kwargs)
@@ -39,6 +45,26 @@ class Generator:
                 of.write(bytes(self.layers[z]))
 
             of.write(b'</svg>')
+
+    def group(self, z, **kwargs):
+        return GroupCM(self, z, kwargs)
+
+
+class GroupCM:
+    def __init__(self, generator, z, kwargs):
+        self.z = z
+        self.kwargs = kwargs
+        self.generator = generator
+
+    def __enter__(self):
+        self.generator._add_element(self.z, 'g', closed=False, **self.kwargs)
+
+    def __exit__(self, type, value, tb):
+        if tb is None:
+            self.generator._close_element(self.z, 'g')
+        else:
+            print(type, value, tb)
+            raise Exception(type, value, tb)
 
 
 class SVGPath:
