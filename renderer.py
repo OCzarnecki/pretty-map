@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from osm import WayType, RelationType
+from osm import FeatureType, NodeProperties
 from projection import Projection
 from svg import Generator
 
@@ -17,41 +17,28 @@ class SVGRenderer(Renderer):
         self.projection = projection
         self.svg = Generator(output_path)
 
-    def draw_way(self, way, way_type: WayType):
-        if way_type == WayType.UNKNOWN:
+    def draw_node(self, node, node_properties: NodeProperties):
+        if node_properties.is_subway_stop():
+            self.svg.underground_logo(*self.projection.transform(*node), size=200, z=5)
+
+    def draw_way(self, way, feature_type: FeatureType):
+        if feature_type == FeatureType.UNKNOWN or feature_type == FeatureType.BUILDING:
             return
-        z = 0
-        if way_type == WayType.WATER_BODY:
-            kwargs = {'fill': 'lightblue', 'stroke': 'none'}
-            z = 0
-        elif way_type == WayType.WATERWAY:
-            kwargs = {'fill': 'none', 'stroke_width': 10, 'stroke': 'blue'}
-            z = -1
-        elif way_type == WayType.RAILWAY:
-            kwargs = {'fill': 'none', 'stroke_width': 10, 'stroke': 'grey'}
-            z = 2
-        elif way_type == WayType.PARK:
-            z = -1
-            kwargs = {'fill': 'lightgreen', 'stroke': 'none'}
-        else:
-            kwargs = {'fill': 'none', 'stroke_width': 10, 'stroke': 'black'}
-            z = 3
+        z, kwargs = self.get_rendering_args(feature_type)
 
         path = self.svg.path(z, **kwargs)
         for coords in way:
             path.node(*self.projection.transform(*coords))
         path.add()
 
-    def draw_relation(self, ways, relation_type: RelationType):
-        if relation_type == relation_type.UNKNOWN:
+    def draw_relation(self, ways, feature_type: FeatureType):
+        if feature_type in [FeatureType.UNKNOWN, FeatureType.BUILDING]:
             return
-        if relation_type == RelationType.WATER_BODY:
-            kwargs = {'fill': 'lightblue', 'stroke': 'none'}
-            z = 0
-        elif relation_type == RelationType.PARK:
-            kwargs = {'fill': 'lightgreen', 'stroke': 'none'}
-            z = -1
-        ordered = self.reorder_ways(ways)
+        z, kwargs = self.get_rendering_args(feature_type)
+        if feature_type == FeatureType.UNDERGROUND:
+            ordered = [ways]
+        else:
+            ordered = self.reorder_ways(ways)
         for group in ordered:
             with self.svg.group(z):
                 path = self.svg.path(z, **kwargs)
@@ -60,10 +47,34 @@ class SVGRenderer(Renderer):
                         path.node(*self.projection.transform(*coords))
                 path.add()
 
+    def get_rendering_args(self, feature_type: FeatureType):
+        if feature_type == FeatureType.WATER_BODY:
+            kwargs = {'fill': 'lightblue', 'stroke': 'none'}
+            z = 0
+        elif feature_type == FeatureType.WATERWAY:
+            kwargs = {'fill': 'none', 'stroke_width': 10, 'stroke': 'blue'}
+            z = -1
+        elif feature_type == FeatureType.RAILWAY:
+            kwargs = {'fill': 'none', 'stroke_width': 10, 'stroke': 'grey'}
+            z = 2
+        elif feature_type == FeatureType.PARK:
+            z = -1
+            kwargs = {'fill': 'lightgreen', 'stroke': 'none'}
+        elif feature_type == FeatureType.BUILDING:
+            z = -1
+            kwargs = {'fill': 'steelblue', 'stroke': 'none', 'stroke_width': 5}
+        elif feature_type == FeatureType.UNDERGROUND:
+            z = 2
+            kwargs = {'fill': 'none', 'stroke': 'red', 'stroke_width': 20}
+        else:
+            kwargs = {'fill': 'none', 'stroke_width': 10, 'stroke': 'black'}
+            z = 3
+        return z, kwargs
+
     def reorder_ways(self, ways):
         def get_next(link_node, way):
-            if len(way) < 2:
-                raise Exception("Illegal state: way must consist of at least 2 nodes")
+            # if len(way) < 2:
+                # raise Exception("Illegal state: way must consist of at least 2 nodes")
             if link_node == way[0]:
                 next_link = way[-1]
             elif link_node == way[-1]:
@@ -83,18 +94,6 @@ class SVGRenderer(Renderer):
                     return None, None
                 else:
                     return next_link, candidates[idx]
-#             elif len(candidates) == 2:
-#                 if candidates[0] == candidates[1]:
-#                     return None, None  # Self loop
-#                 if way == candidates[0]:
-#                     next_way = candidates[1]
-#                 elif way == candidates[1]:
-#                     next_way = candidates[0]
-#                 else:
-#                     raise Exception("Illegal state: current way must be one of the candidates")
-#             else:
-#                 raise Exception(f"Illegal state: there must always be one or two candidates, but there were {len(candidates)}")
-#             return next_link, next_way
 
         def find_unseen(seen, ways):
             for way in ways:
@@ -113,17 +112,13 @@ class SVGRenderer(Renderer):
             if way[-1] not in by_end:
                 by_end[way[-1]] = []
             by_end[way[-1]].append(way)
-        # print([(k, [hash(tuple(c)) for c in v]) for k, v in by_end.items()])
 
         ordered = [[ways[0]]]
         link_node = ordered[0][0][0]
         seen = set((tuple(ways[0]),))
-        # print(hash(tuple(ways[0])), end='')
         while sum(map(len, ordered)) < len(ways):
             link_node, next_way = get_next(link_node, ordered[-1][-1])
             if next_way is None or tuple(next_way) in seen:
-                # we've looped around
-                # print(f' D({hash(tuple(next_way)) if next_way is not None else None}) ', end='')
                 next_way = find_unseen(seen, ways)
                 link_node = next_way[0]
                 ordered.append([])

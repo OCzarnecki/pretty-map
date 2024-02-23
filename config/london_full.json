@@ -3,7 +3,8 @@
     "dest_path": "./test_render.svg",
     "top_left_lon": -0.2331,
     "top_left_lat": 51.5949,
-    "px_per_deg": 253987,
+    "px_per_deg_lon": 54388,
+    "px_per_deg_lat": 87556,
     "width_px": 60228,
     "height_px": 35433
 }

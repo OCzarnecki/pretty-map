@@ -7,6 +7,7 @@ class Generator:
     def __init__(self, output_path):
         self.output_path = output_path
         self.layers = {}
+        self.underground_logo_template = None
 
     def _add_str(self, z, el: bytes):
         if z not in self.layers:
@@ -31,6 +32,17 @@ class Generator:
 
     def path(self, z=0, **kwargs):
         return SVGPath(self, z, kwargs)
+
+    def underground_logo(self, x, y, size, z=0):
+        if self.underground_logo_template is None:
+            # lazy load
+            self.underground_logo_template = open('./underground_logo.svg', 'r', encoding='utf8').read()
+
+        logo = (self.underground_logo_template.replace('$$X$$', str(x))
+                .replace('$$Y$$', str(y))
+                .replace('$$WIDTH$$', str(size))
+                .replace('$$HEIGHT$$', str(size)))
+        self._add_str(z, logo.encode('utf8'))
 
     def write_svg(self, width, height, origin_x, origin_y):
         with open(self.output_path, 'wb') as of:
