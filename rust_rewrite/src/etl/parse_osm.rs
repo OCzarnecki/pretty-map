@@ -10,8 +10,7 @@ use quick_xml::reader::Reader;
 use xz::bufread::XzDecoder;
 
 use crate::{errors, UserConfig};
-use crate::data::OsmMapData;
-use crate::data::osm::{Node, Way, Relation};
+use crate::data::osm::{OsmMapData, Node, Way, Relation};
 use crate::errors::{Error, Result};
 use crate::etl::Etl;
 

@@ -13,7 +13,6 @@ use serde::Deserialize;
 use structured_logger::json::new_writer;
 use structured_logger::Builder;
 
-use crate::data::OsmMapData;
 use crate::etl::parse_osm::ParseOsmEtl;
 use crate::etl::Etl;
 use crate::errors::Result;

@@ -2,6 +2,16 @@ use std::collections::HashMap;
 
 pub type OsmId = u64;
 
+/// Map data as defined in the .osm file. Some elements are discarded but most are
+/// kept without any processing.
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone)]
+pub struct OsmMapData {
+    pub nodes: HashMap<OsmId, Node>,
+    pub ways: HashMap<OsmId, Way>,
+    pub relations: HashMap<OsmId, Relation>,
+}
+
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone)]
 pub struct Node {
     pub id: OsmId,
