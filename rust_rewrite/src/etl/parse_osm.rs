@@ -274,8 +274,13 @@ impl Etl for ParseOsmEtl<'_> {
             }
             buf.clear();
         };
+
         Ok(OsmMapData {
-            // nodes: self.nodes.clone(),
+            // Don't store nodes without tags, as we won't want to draw them
+            nodes: self.nodes.iter()
+                .filter(|(_id, node)| !node.tags.is_empty())
+                .map(|(id_ref, node_ref)| (id_ref.to_owned(), node_ref.to_owned()))
+                .collect(),
             ways: self.ways.clone(),
             relations: self.relations.clone(),
         })

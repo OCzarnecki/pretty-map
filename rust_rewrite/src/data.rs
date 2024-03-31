@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use self::osm::{OsmId, Relation, Way};
+use self::osm::{Node, OsmId, Relation, Way};
 
 pub mod osm;
 
@@ -9,6 +9,7 @@ pub mod osm;
 
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone)]
 pub struct OsmMapData {
+    pub nodes: HashMap<OsmId, Node>,
     pub ways: HashMap<OsmId, Way>,
     pub relations: HashMap<OsmId, Relation>,
 }
