@@ -1,71 +1,108 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
-use std::str;
+use std::str::{self, FromStr};
 
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 use xz::bufread::XzDecoder;
 
-use crate::UserConfig;
-use crate::data::osm::Node;
-use crate::errors::Error;
-use crate::etl::ETL;
+use crate::{errors, UserConfig};
+use crate::data::osm::{OsmId, Node, Way, Relation};
+use crate::errors::{Error, Result};
+use crate::etl::Etl;
 
 const ETL_NAME: &str = "parse_osm";
 const OUTPUT_FILE_NAME: &str = "osm_elements.rkyv";
 
 pub struct Output {
-    nodes: Vec<Node>,
+    nodes: HashMap<OsmId, Node>,
+    ways: HashMap<OsmId, Way>,
+    relations: HashMap<OsmId, Relation>,
 }
 
+#[derive(Debug, PartialEq)]
 enum ParserState {
     Top,
+    Node,
     Way,
     Relation,
 }
 
-pub struct ParseOSMETL<'a> {
+pub struct ParseOsmEtl<'a> {
     config: &'a UserConfig,
 }
 
-impl ParseOSMETL<'_> {
-    fn parse_node(el: BytesStart) -> Option<Node> {
-        let mut id: Option<u64> = None;
-        let mut lat: Option<f64> = None;
-        let mut lon: Option<f64> = None;
+impl ParseOsmEtl<'_> {
+    fn parse_node(el: BytesStart) -> Result<Node> {
+        let mut id: u64 = 0;
+        let mut lat: f64 = 0.0;
+        let mut lon: f64 = 0.0;
 
         for attribute_res in el.attributes() {
-            let attribute = attribute_res.ok()?;
+            let attribute = attribute_res?;
             match attribute.key.as_ref() {
                 b"id" => {
-                    let value_str = str::from_utf8(&attribute.value).ok()?;
-                    id = Some(value_str.parse().ok()?);
+                    let value_str = str::from_utf8(&attribute.value)?;
+                    id = value_str.parse()?;
                 },
                 b"lat" => {
-                    let value_str = str::from_utf8(&attribute.value).ok()?;
-                    lat = Some(value_str.parse().ok()?);
+                    let value_str = str::from_utf8(&attribute.value)?;
+                    lat = value_str.parse()?;
                 },
                 b"lon" => {
-                    let value_str = str::from_utf8(&attribute.value).ok()?;
-                    lon = Some(value_str.parse().ok()?);
+                    let value_str = str::from_utf8(&attribute.value)?;
+                    lon = value_str.parse()?;
                 },
                 b"version" => (),
                 _ => {
-                    eprintln!("WARNING: Unexpected attribute {:?}.", attribute.key);
-                    return None
+                    return Err(format!("WARNING: Unexpected attribute {:?}.", attribute.key).into());
                 },
             }
         }
 
-        Some(Node {
-            id: id?,
-            lat: lat?,
-            lon: lon?,
+        Ok(Node {
+            id,
+            lat,
+            lon,
+            tags: HashMap::new(),
         })
     }
 
-    fn create_osm_reader(&self) -> Result<Reader<impl BufRead>, Error> {
+    fn get_attr(el: &BytesStart, attribute_name: &[u8]) -> Result<Vec<u8>> {
+        for attribute_res in el.attributes() {
+            let attribute = attribute_res?;
+            if attribute_name == attribute.key.as_ref() {
+                return Ok(attribute.value.to_vec())
+            }
+        }
+        Err(format!("Attribute 'id' not in element {:?}", el).into())
+    }
+
+    fn parse_attr<T: FromStr>(el: BytesStart, attribute_name: &[u8]) -> Result<T>
+    where errors::Error: From<<T as FromStr>::Err> {
+        let attr_value = Self::get_attr(&el, attribute_name)?;
+        let value_str = str::from_utf8(&attr_value)?;
+        let id = value_str.parse()?;
+        Ok(id)
+    }
+
+    fn parse_way(el: BytesStart) -> Result<Way> {
+        Ok(Way {
+            id: Self::parse_attr(el, b"id")?,
+            ..Default::default()
+        })
+    }
+
+    fn parse_relation(el: BytesStart) -> Result<Relation> {
+        Ok(Relation {
+            id: Self::parse_attr(el, b"id")?,
+            ..Default::default()
+        })
+    }
+
+    fn create_osm_reader(&self) -> Result<Reader<impl BufRead>> {
         let file = fs::File::open(Path::new("..").join(&self.config.data_path))?;
         let file_reader = BufReader::new(file);
         let xz_reader =  XzDecoder::new(file_reader);
@@ -76,14 +113,14 @@ impl ParseOSMETL<'_> {
         Ok(reader)
     }
 
-    pub fn new(config: &UserConfig) -> ParseOSMETL {
-        ParseOSMETL {
+    pub fn new(config: &UserConfig) -> ParseOsmEtl {
+        ParseOsmEtl {
             config
         }
     }
 }
 
-impl ETL for ParseOSMETL<'_> {
+impl Etl for ParseOsmEtl<'_> {
     type Input = ();
     type Output = Output;
 
@@ -95,15 +132,23 @@ impl ETL for ParseOSMETL<'_> {
         OUTPUT_FILE_NAME
     }
 
-    fn extract(&self) -> Result<Self::Input, Error> {
+    fn extract(&self) -> Result<Self::Input> {
         Ok(())
     }
 
-    fn transform(&self, _input: ()) -> Result<Self::Output, Error> {
+    fn transform(&self, _input: ()) -> Result<Self::Output> {
         let mut reader = self.create_osm_reader()?;
         let mut buf = Vec::new();
 
-        let mut nodes: Vec<Node> = Vec::new();
+        let mut state = ParserState::Top;
+
+        let mut nodes: HashMap<u64, Node> = HashMap::new();
+        let mut ways: HashMap<u64, Way> = HashMap::new();
+        let mut relations: HashMap<u64, Relation> = HashMap::new();
+
+        let mut current_node = Node::default();
+        let mut current_way = Way::default();
+        let mut current_relation = Relation::default();
 
         loop {
             match reader.read_event_into(&mut buf) {
@@ -114,36 +159,109 @@ impl ETL for ParseOSMETL<'_> {
                 Ok(Event::Start(e)) => {
                     match e.name().as_ref() {
                         b"node" => {
-                            if let Some(node) = ParseOSMETL::parse_node(e) {
-                                nodes.push(node);
+                            if state != ParserState::Top {
+                                return Err(format!("Got <node> element in state {:?}", state).into())
                             }
+
+                            state = ParserState::Node;
+                            current_node = ParseOsmEtl::parse_node(e)?;
                         },
-                        b"way" => (),
-                        b"relation" => (),
+                        b"way" => {
+                            if state != ParserState::Top {
+                                return Err(format!("Got <way> element in state {:?}", state).into())
+                            }
+
+                            state = ParserState::Way;
+                            current_way = ParseOsmEtl::parse_way(e)?;
+                        },
+                        b"relation" => {
+                            if state != ParserState::Top {
+                                return Err(format!("Got <relation> element in state {:?}", state).into())
+                            }
+
+                            state = ParserState::Relation;
+                            current_relation = ParseOsmEtl::parse_relation(e)?;
+                        },
+                        b"nd" => {
+                            if state != ParserState::Way {
+                                return Err(format!("Got <nd> element in state {:?}", state).into())
+                            }
+
+                            let id = ParseOsmEtl::parse_attr(e, b"ref")?;
+                            current_way.nodes.push(
+                                nodes.get(&id)
+                                .ok_or::<Error>(format!("Reference to undefined node id {:?}", id).into())?
+                                .clone()
+                            );
+                        },
+                        b"member" => {
+                            if state != ParserState::Relation {
+                                return Err(format!("Got <member> element in state {:?}", state).into())
+                            }
+
+                            let member_type= ParseOsmEtl::get_attr(&e, b"type")?;
+                            if b"way" != member_type.as_slice() {
+                                continue
+                            }
+
+                            let id = ParseOsmEtl::parse_attr(e, b"ref")?;
+                            current_relation.nodes.push(
+                                nodes.get(&id)
+                                .ok_or::<Error>(format!("Reference to undefined node id {:?}", id).into())?
+                                .clone()
+                            );
+                        },
+                        b"tag" => {
+                            let key = ParseOsmEtl::get_attr(&e, b"key")?.to_vec();
+                            let value = ParseOsmEtl::get_attr(&e, b"value")?.to_vec();
+
+                            match state {
+                                ParserState::Top => continue,
+                                ParserState::Node => current_node.tags.insert(key, value),
+                                ParserState::Way => current_way.tags.insert(key, value),
+                                ParserState::Relation => current_relation.tags.insert(key, value),
+                            };
+                        },
                         _ => (),
                     }
                 }
-                Ok(Event::End(_e)) => (),
+                Ok(Event::End(e)) => {
+                    match e.name().as_ref() {
+                        b"node" => {
+                            state = ParserState::Top;
+                            nodes.insert(current_node.id, current_node.clone());
+                        },
+                        b"way" => {
+                            state = ParserState::Top;
+                            ways.insert(current_way.id, current_way.clone());
+                        },
+                        b"relation" => {
+                            state = ParserState::Top;
+                            relations.insert(current_relation.id, current_relation.clone());
+                        },
+                        _ => {},
+                    }
+                },
                 Ok(Event::Empty(e)) => {
                     if e.name().as_ref() == b"node" {
-                        if let Some(node) = ParseOSMETL::parse_node(e) {
-                            nodes.push(node);
+                        if let Ok(node) = ParseOsmEtl::parse_node(e) {
+                            nodes.insert(node.id, node);
                         }
                     }
                 },
-
-                // There are several other `Event`s we do not consider here
-                event => panic!("Unexpected event {:?}", event),
+                event => return Err(format!("Unexpected event {:?}", event).into()),
             }
             // if we don't keep a borrow elsewhere, we can clear the buffer to keep memory usage low
             buf.clear();
         };
         Ok(Output {
             nodes,
+            ways,
+            relations,
         })
     }
 
-    fn load(&self, mut output_file: fs::File, output: Self::Output) -> Result<(), Error> {
+    fn load(&self, mut output_file: fs::File, output: Self::Output) -> Result<()> {
         let bytes = rkyv::to_bytes::<_, 256>(&output.nodes).unwrap();
         output_file.write_all(&bytes)?;
         Ok(())

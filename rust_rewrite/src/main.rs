@@ -12,8 +12,8 @@ use serde::Deserialize;
 use structured_logger::json::new_writer;
 use structured_logger::Builder;
 
-use crate::etl::parse_osm::ParseOSMETL;
-use crate::etl::ETL;
+use crate::etl::parse_osm::ParseOsmEtl;
+use crate::etl::Etl;
 use crate::errors::Result;
 use crate::data::osm::Node;
 
@@ -55,7 +55,7 @@ fn main() -> Result<()> {
 
 
     let user_config = load_user_config("../config/london_full.json");
-    let etl = ParseOSMETL::new(&user_config);
+    let etl = ParseOsmEtl::new(&user_config);
     let output_dir = create_output_dir(&user_config)?;
     etl.process(Path::new(&output_dir))?;
 

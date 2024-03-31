@@ -6,7 +6,7 @@ use log::info;
 use crate::errors::Result;
 
 
-pub trait ETL {
+pub trait Etl {
     type Input;
     type Output;
 

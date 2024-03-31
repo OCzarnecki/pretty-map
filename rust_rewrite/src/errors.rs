@@ -1,4 +1,5 @@
-use std::io;
+use std::{io, num::{ParseFloatError, ParseIntError}, str::Utf8Error};
+use quick_xml::events::attributes::AttrError;
 
 #[derive(Debug)] 
 pub struct Error {
@@ -21,10 +22,58 @@ impl From<quick_xml::Error> for Error {
     }
 }
 
+impl From<ParseFloatError> for Error {
+    fn from(value: ParseFloatError) -> Self {
+        Error {
+            message: value.to_string()
+        }
+    }
+}
+
+impl From<ParseIntError> for Error {
+    fn from(value: ParseIntError) -> Self {
+        Error {
+            message: value.to_string()
+        }
+    }
+}
+
+impl From<AttrError> for Error {
+    fn from(value: AttrError) -> Self {
+        Error {
+            message: value.to_string()
+        }
+    }
+}
+
+impl From<&AttrError> for Error {
+    fn from(value: &AttrError) -> Self {
+        Error {
+            message: value.to_string()
+        }
+    }
+}
+
+impl From<Utf8Error> for Error {
+    fn from(value: Utf8Error) -> Self {
+        Error {
+            message: value.to_string()
+        }
+    }
+}
+
 impl From<&str> for Error {
     fn from(value: &str) -> Self {
         Error {
             message: value.to_string()
+        }
+    }
+}
+
+impl From<String> for Error {
+    fn from(value: String) -> Self {
+        Error {
+            message: value
         }
     }
 }
