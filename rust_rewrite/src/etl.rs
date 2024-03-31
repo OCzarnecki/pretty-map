@@ -1,7 +1,7 @@
 pub mod parse_osm;
 
 use std::{fs, path::{Path, PathBuf}};
-use log::info;
+use log::{info, error};
 
 use crate::errors::Result;
 
@@ -41,13 +41,31 @@ pub trait Etl {
             let output_file = fs::File::create(self.output_path(dir))?;
 
             info!(etl_name = self.etl_name(); "Extracting");
-            let input = self.extract()?;
-
+            let input = match self.extract() {
+                Ok(input) => Ok(input),
+                Err(err) => {
+                    error!(etl_name = self.etl_name(), err = err.message; "Extraction failed with error");
+                    Err(err)
+                },
+            }?;
+            
             info!(etl_name = self.etl_name(); "Transforming");
-            let output = self.transform(input)?;
+            let output = match self.transform(input) {
+                Ok(output) => Ok(output),
+                Err(err) => {
+                    error!(etl_name = self.etl_name(), err = err.message; "Transformation failed with error");
+                    Err(err)
+                },
+            }?;
 
             info!(etl_name = self.etl_name(); "Loading");
-            self.load(output_file, output)?;
+            match self.load(output_file, output) {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    error!(etl_name = self.etl_name(), err = err.message; "Loading failed with error");
+                    Err(err)
+                },
+            }?;
         }
         info!(etl_name = self.etl_name(); "Process finished");
         Ok(())

@@ -4,8 +4,10 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::str::{self, FromStr};
 
+use log::warn;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
+use rkyv::ser::{Serializer, serializers::WriteSerializer};
 use xz::bufread::XzDecoder;
 
 use crate::{errors, UserConfig};
@@ -16,10 +18,11 @@ use crate::etl::Etl;
 const ETL_NAME: &str = "parse_osm";
 const OUTPUT_FILE_NAME: &str = "osm_elements.rkyv";
 
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone)]
 pub struct Output {
-    nodes: HashMap<OsmId, Node>,
-    ways: HashMap<OsmId, Way>,
-    relations: HashMap<OsmId, Relation>,
+    // pub nodes: HashMap<OsmId, Node>,
+    pub ways: HashMap<OsmId, Way>,
+    pub relations: HashMap<OsmId, Relation>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -86,7 +89,11 @@ impl ParseOsmEtl<'_> {
                 return Ok(attribute.value.to_vec())
             }
         }
-        Err(format!("Attribute 'id' not in element {:?}", el).into())
+        if let Ok(attribute_name_str) = str::from_utf8(attribute_name) {
+            Err(format!("Attribute <{:?}> not in element {:?}", attribute_name_str, el).into())
+        } else {
+            Err(format!("Attribute ??? not in element {:?}", el).into())
+        }
     }
 
     fn parse_attr<T: FromStr>(el: &BytesStart, attribute_name: &[u8]) -> Result<T>
@@ -154,11 +161,11 @@ impl ParseOsmEtl<'_> {
                 }
 
                 let id = ParseOsmEtl::parse_attr(e, b"ref")?;
-                self.current_way.nodes.push(
-                    self.nodes.get(&id)
-                    .ok_or::<Error>(format!("Reference to undefined node id {:?}", id).into())?
-                    .clone()
-                );
+                if let Some(node) = self.nodes.get(&id) {
+                    self.current_way.nodes.push(node.clone());
+                } else {
+                    warn!("Reference to undefined node id {:?} while in state {:?}.", id, self.state);
+                }
             },
             b"member" => {
                 if self.state != ParserState::Relation {
@@ -171,15 +178,15 @@ impl ParseOsmEtl<'_> {
                 }
 
                 let id = ParseOsmEtl::parse_attr(e, b"ref")?;
-                self.current_relation.nodes.push(
-                    self.nodes.get(&id)
-                    .ok_or::<Error>(format!("Reference to undefined node id {:?}", id).into())?
+                self.current_relation.ways.push(
+                    self.ways.get(&id)
+                    .ok_or::<Error>(format!("Reference to undefined way id {:?}", id).into())?
                     .clone()
                 );
             },
             b"tag" => {
-                let key = ParseOsmEtl::get_attr(e, b"key")?.to_vec();
-                let value = ParseOsmEtl::get_attr(e, b"value")?.to_vec();
+                let key = ParseOsmEtl::get_attr(e, b"k")?.to_vec();
+                let value = ParseOsmEtl::get_attr(e, b"v")?.to_vec();
 
                 match self.state {
                     ParserState::Top => return Err(format!("Got unexpected <tag>. {:?}", e).into()),
@@ -265,14 +272,14 @@ impl Etl for ParseOsmEtl<'_> {
             buf.clear();
         };
         Ok(Output {
-            nodes: self.nodes.clone(),
+            // nodes: self.nodes.clone(),
             ways: self.ways.clone(),
             relations: self.relations.clone(),
         })
     }
 
     fn load(&mut self, mut output_file: fs::File, output: Self::Output) -> Result<()> {
-        let bytes = rkyv::to_bytes::<_, 256>(&output.nodes).unwrap();
+        let bytes = rkyv::to_bytes::<_, 256>(&output).unwrap();
         output_file.write_all(&bytes)?;
         Ok(())
     }

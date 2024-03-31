@@ -3,7 +3,7 @@ use quick_xml::events::attributes::AttrError;
 
 #[derive(Debug)] 
 pub struct Error {
-    message: String,
+    pub message: String,
 }
 
 impl From<io::Error> for Error {

@@ -20,6 +20,6 @@ pub struct Way {
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone)]
 pub struct Relation {
     pub id: OsmId,
-    pub nodes: Vec<Node>,
+    pub ways: Vec<Way>,
     pub tags: HashMap<Vec<u8>, Vec<u8>>,
 }
