@@ -1,29 +1,23 @@
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::{self, FromStr};
 
 use log::warn;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
-use rkyv::ser::{Serializer, serializers::WriteSerializer};
 use xz::bufread::XzDecoder;
 
 use crate::{errors, UserConfig};
-use crate::data::osm::{OsmId, Node, Way, Relation};
+use crate::data::OsmMapData;
+use crate::data::osm::{Node, Way, Relation};
 use crate::errors::{Error, Result};
 use crate::etl::Etl;
 
-const ETL_NAME: &str = "parse_osm";
-const OUTPUT_FILE_NAME: &str = "osm_elements.rkyv";
+pub const ETL_NAME: &str = "parse_osm";
+pub const OUTPUT_FILE_NAME: &str = "osm_elements.rkyv";
 
-#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Default, Clone)]
-pub struct Output {
-    // pub nodes: HashMap<OsmId, Node>,
-    pub ways: HashMap<OsmId, Way>,
-    pub relations: HashMap<OsmId, Relation>,
-}
 
 #[derive(Debug, PartialEq)]
 enum ParserState {
@@ -47,6 +41,43 @@ pub struct ParseOsmEtl<'a> {
 }
 
 impl ParseOsmEtl<'_> {
+    fn output_path(dir: &Path) -> PathBuf {
+        dir.join(OUTPUT_FILE_NAME)
+    }
+
+    fn create_osm_reader(&self) -> Result<Reader<impl BufRead>> {
+        let file = fs::File::open(Path::new("..").join(&self.config.data_path))?;
+        let file_reader = BufReader::new(file);
+        let xz_reader =  XzDecoder::new(file_reader);
+        let buffered_xz_reader = BufReader::new(xz_reader);
+        let mut reader = Reader::from_reader(buffered_xz_reader);
+        reader.trim_text(true);
+
+        Ok(reader)
+    }
+
+    fn get_attr(el: &BytesStart, attribute_name: &[u8]) -> Result<Vec<u8>> {
+        for attribute_res in el.attributes() {
+            let attribute = attribute_res?;
+            if attribute_name == attribute.key.as_ref() {
+                return Ok(attribute.value.to_vec())
+            }
+        }
+        if let Ok(attribute_name_str) = str::from_utf8(attribute_name) {
+            Err(format!("Attribute <{:?}> not in element {:?}", attribute_name_str, el).into())
+        } else {
+            Err(format!("Attribute ??? not in element {:?}", el).into())
+        }
+    }
+
+    fn parse_attr<T: FromStr>(el: &BytesStart, attribute_name: &[u8]) -> Result<T>
+    where errors::Error: From<<T as FromStr>::Err> {
+        let attr_value = Self::get_attr(el, attribute_name)?;
+        let value_str = str::from_utf8(&attr_value)?;
+        let id = value_str.parse()?;
+        Ok(id)
+    }
+
     fn parse_node(el: &BytesStart) -> Result<Node> {
         let mut id: u64 = 0;
         let mut lat: f64 = 0.0;
@@ -82,28 +113,6 @@ impl ParseOsmEtl<'_> {
         })
     }
 
-    fn get_attr(el: &BytesStart, attribute_name: &[u8]) -> Result<Vec<u8>> {
-        for attribute_res in el.attributes() {
-            let attribute = attribute_res?;
-            if attribute_name == attribute.key.as_ref() {
-                return Ok(attribute.value.to_vec())
-            }
-        }
-        if let Ok(attribute_name_str) = str::from_utf8(attribute_name) {
-            Err(format!("Attribute <{:?}> not in element {:?}", attribute_name_str, el).into())
-        } else {
-            Err(format!("Attribute ??? not in element {:?}", el).into())
-        }
-    }
-
-    fn parse_attr<T: FromStr>(el: &BytesStart, attribute_name: &[u8]) -> Result<T>
-    where errors::Error: From<<T as FromStr>::Err> {
-        let attr_value = Self::get_attr(el, attribute_name)?;
-        let value_str = str::from_utf8(&attr_value)?;
-        let id = value_str.parse()?;
-        Ok(id)
-    }
-
     fn parse_way(el: &BytesStart) -> Result<Way> {
         Ok(Way {
             id: Self::parse_attr(el, b"id")?,
@@ -116,17 +125,6 @@ impl ParseOsmEtl<'_> {
             id: Self::parse_attr(el, b"id")?,
             ..Default::default()
         })
-    }
-
-    fn create_osm_reader(&self) -> Result<Reader<impl BufRead>> {
-        let file = fs::File::open(Path::new("..").join(&self.config.data_path))?;
-        let file_reader = BufReader::new(file);
-        let xz_reader =  XzDecoder::new(file_reader);
-        let buffered_xz_reader = BufReader::new(xz_reader);
-        let mut reader = Reader::from_reader(buffered_xz_reader);
-        reader.trim_text(true);
-
-        Ok(reader)
     }
 
     fn start_element(&mut self, e: &BytesStart) -> Result<()> {
@@ -237,17 +235,22 @@ impl ParseOsmEtl<'_> {
 
 impl Etl for ParseOsmEtl<'_> {
     type Input = ();
-    type Output = Output;
+    type Output = OsmMapData;
 
     fn etl_name(&self) -> &str {
         ETL_NAME
     }
 
-    fn output_file_name(&self) -> &str {
-        OUTPUT_FILE_NAME
+    fn is_cached(&self, dir: &Path) -> Result<bool> {
+        Ok(Self::output_path(dir).exists())
     }
 
-    fn extract(&mut self) -> Result<Self::Input> {
+    fn clean(&self, dir: &Path) -> Result<()> {
+        fs::remove_file(Self::output_path(dir))?;
+        Ok(())
+    }
+
+    fn extract(&mut self, _dir: &Path) -> Result<Self::Input> {
         Ok(())
     }
 
@@ -271,14 +274,15 @@ impl Etl for ParseOsmEtl<'_> {
             }
             buf.clear();
         };
-        Ok(Output {
+        Ok(OsmMapData {
             // nodes: self.nodes.clone(),
             ways: self.ways.clone(),
             relations: self.relations.clone(),
         })
     }
 
-    fn load(&mut self, mut output_file: fs::File, output: Self::Output) -> Result<()> {
+    fn load(&mut self, dir: &Path, output: Self::Output) -> Result<()> {
+        let mut output_file = File::create(Self::output_path(dir))?;
         let bytes = rkyv::to_bytes::<_, 256>(&output).unwrap();
         output_file.write_all(&bytes)?;
         Ok(())

@@ -8,11 +8,13 @@ use std::path::{Path, PathBuf};
 use std::str;
 
 
+use etl::semantic_map::SemanticMapEtl;
 use serde::Deserialize;
 use structured_logger::json::new_writer;
 use structured_logger::Builder;
 
-use crate::etl::parse_osm::{ParseOsmEtl, Output};
+use crate::data::OsmMapData;
+use crate::etl::parse_osm::ParseOsmEtl;
 use crate::etl::Etl;
 use crate::errors::Result;
 
@@ -53,23 +55,13 @@ fn main() -> Result<()> {
     setup_logging();
 
     let user_config = load_user_config("../config/london_full.json");
-    let mut etl = ParseOsmEtl::new(&user_config);
     let output_dir = create_output_dir(&user_config)?;
-    etl.process(Path::new(&output_dir))?;
 
-    let output_path = output_dir.join("osm_elements.rkyv");
-    let mut fin = File::open(output_path).expect("Could not open node cache file.");
-    let mut buf_vec: Vec<u8> = Vec::new();
-    fin.read_to_end(&mut buf_vec).expect("Could not read note cache.");
+    let mut parse_osm_etl = ParseOsmEtl::new(&user_config);
+    let mut semantic_map_etl = SemanticMapEtl::new();
 
-    let output: Output = unsafe {
-        rkyv::from_bytes_unchecked(&buf_vec).expect("Could not deserialize node cache.")
-    };
-    eprintln!(
-        "Read {} ways and {} relations from cache.",
-        output.ways.len(),
-        output.relations.len(),
-    );
+    parse_osm_etl.process(&output_dir)?;
+    semantic_map_etl.process(&output_dir)?;
 
     Ok(())
 }
