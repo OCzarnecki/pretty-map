@@ -13,9 +13,9 @@ pub trait Etl {
     fn etl_name(&self) -> &str;
     fn output_file_name(&self) -> &str;
 
-    fn extract(&self) -> Result<Self::Input>;
-    fn transform(&self, input: Self::Input) -> Result<Self::Output>;
-    fn load(&self, output_file: fs::File, output: Self::Output) -> Result<()>;
+    fn extract(&mut self) -> Result<Self::Input>;
+    fn transform(&mut self, input: Self::Input) -> Result<Self::Output>;
+    fn load(&mut self, output_file: fs::File, output: Self::Output) -> Result<()>;
 
     fn output_path(&self, dir: &Path) -> PathBuf {
         dir.join(self.output_file_name())
@@ -33,7 +33,7 @@ pub trait Etl {
         }
     }
 
-    fn process(&self, dir: &Path) -> Result<()> {
+    fn process(&mut self, dir: &Path) -> Result<()> {
         info!(etl_name = self.etl_name(); "Starting ETL process");
         if self.is_cached(dir)? {
             info!(etl_name = self.etl_name(); "Using cached value");

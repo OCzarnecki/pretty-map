@@ -55,7 +55,7 @@ fn main() -> Result<()> {
 
 
     let user_config = load_user_config("../config/london_full.json");
-    let etl = ParseOsmEtl::new(&user_config);
+    let mut etl = ParseOsmEtl::new(&user_config);
     let output_dir = create_output_dir(&user_config)?;
     etl.process(Path::new(&output_dir))?;
 
