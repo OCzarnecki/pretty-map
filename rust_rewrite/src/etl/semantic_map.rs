@@ -1,12 +1,14 @@
-use std::{collections::HashMap, fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}};
+use std::{str, collections::HashMap, fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}};
 
-use crate::{data::{osm::{Node, OsmId, OsmMapData, Relation, Way}, semantic::SemanticMapElements}, errors::Result};
+use crate::{data::{osm::{Node, OsmId, OsmMapData, Relation, Way}, semantic::{Area, AreaType, SemanticMapElements, TransportStation, TransportStationType}}, errors::Result};
 use crate::etl::parse_osm;
 
 use super::Etl;
+use quick_xml::escape::unescape;
+use regex::Regex;
 
-const ETL_NAME: &str = "semantic_map";
-const OUTPUT_FILE_NAME: &str = "semantic_map.rkyv";
+pub const ETL_NAME: &str = "semantic_map";
+pub const OUTPUT_FILE_NAME: &str = "semantic_map.rkyv";
 
 pub struct SemanticMapEtl {
 }
@@ -23,20 +25,53 @@ impl SemanticMapEtl {
 
     fn has_kv_pair(tags: &HashMap<Vec<u8>, Vec<u8>>, key: &[u8], value: &[u8]) -> bool {
         let key_vec = key.to_vec();
-        let val_vec = value.to_vec();
         if let Some(tag_value) = tags.get(&key_vec) {
-            tag_value == &val_vec
+            tag_value.split(|b| *b == 59)
+                .any(|tag| tag == value)
         } else {
             false
         }
     }
 
+    fn get_string(tags: &HashMap<Vec<u8>, Vec<u8>>, key: &[u8]) -> String {
+        let key_vec = key.to_vec();
+        let val_vec = tags.get(&key_vec).unwrap();
+        return unescape(str::from_utf8(val_vec).unwrap()).unwrap().to_string();
+    }
+
     fn process_nodes(&mut self, output: &mut SemanticMapElements, nodes: &HashMap<OsmId, Node>) {
         for node in nodes.values() {
-            if Self::has_kv_pair(&node.tags, b"railway", b"stop")
-                && Self::has_kv_pair(&node.tags, b"subway", b"yes")
-                && Self::has_kv_pair(&node.tags, b"public_transport", b"stop_position") {
-                output.underground_stations.push(node.into());
+            if Self::has_kv_pair(&node.tags, b"railway", b"station")
+                // && Self::has_kv_pair(&node.tags, b"subway", b"yes")
+                && Self::has_key(&node.tags, b"name") {
+
+                let name = Self::get_string(&node.tags, b"name");
+
+                // Some names are like "Edgeware Road (Bakerloo line)", we want to strip the
+                // brackets.
+                let re = Regex::new(r"(?<base_name>[^(]*)(\(.*\))?").unwrap();
+                let base_name = re.captures(&name).unwrap().name("base_name").unwrap().as_str();
+                let maybe_station_type = if Self::has_kv_pair(&node.tags, b"network", b"London Underground") {
+                    Some(TransportStationType::Underground)
+                } else if Self::has_kv_pair(&node.tags, b"network", b"Docklands Light Railway"){
+                    Some(TransportStationType::Dlr)
+                } else if Self::has_kv_pair(&node.tags, b"network", b"London Overground") {
+                    Some(TransportStationType::Overground)
+                } else if Self::has_kv_pair(&node.tags, b"network", b"Elizabeth Line") {
+                    Some(TransportStationType::ElizabethLine)
+                } else {
+                    None
+                };
+                if let Some(station_type) = maybe_station_type {
+                    output.underground_stations.push(
+                        TransportStation {
+                            name: base_name.trim().to_string(),
+                            station_type,
+                            lon: node.lon,
+                            lat: node.lat
+                        }
+                    );
+                }
             }
         }
     }
@@ -49,16 +84,56 @@ impl SemanticMapEtl {
             if Self::has_key(&way.tags, b"highway") {
                 output.roads.push(way.into());
             }
+            /*
             if Self::has_kv_pair(&way.tags, b"waterway", b"river")
                 || Self::has_kv_pair(&way.tags, b"waterway", b"canal")
                 || Self::has_kv_pair(&way.tags, b"waterway", b"ditch")
                 || Self::has_kv_pair(&way.tags, b"waterway", b"drain") {
                 output.narrow_waterways.push(way.into());
             }
+            */
+            if Self::has_kv_pair(&way.tags, b"leisure", b"park") {
+                output.areas.push(
+                    Area::new(
+                        AreaType::Park,
+                        &vec![way.into()],
+                    )
+                );
+            }
+            if Self::has_key(&way.tags, b"water") 
+                || Self::has_kv_pair(&way.tags, b"natural", b"water")
+            {
+                output.areas.push(
+                    Area::new(
+                        AreaType::Water,
+                        &vec![way.into()],
+                    )
+                );
+            }
         }
     }
 
     fn process_relations(&mut self, output: &mut SemanticMapElements, relations: &HashMap<OsmId, Relation>) {
+        for relation in relations.values() {
+            if Self::has_kv_pair(&relation.tags, b"leisure", b"park") {
+                output.areas.push(
+                    Area::new(
+                        AreaType::Park,
+                        &relation.ways.iter().map(|way| way.into()).collect(),
+                    )
+                );
+            }
+            if Self::has_key(&relation.tags, b"water")
+                || Self::has_kv_pair(&relation.tags, b"natural", b"water")
+            {
+                output.areas.push(
+                    Area::new(
+                        AreaType::Water,
+                        &relation.ways.iter().map(|way| way.into()).collect(),
+                    )
+                );
+            }
+        }
     }
 
     pub fn new() -> SemanticMapEtl {

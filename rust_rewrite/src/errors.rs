@@ -1,5 +1,6 @@
-use std::{io, num::{ParseFloatError, ParseIntError}, str::Utf8Error};
+use std::{io, num::{ParseFloatError, ParseIntError, TryFromIntError}, str::Utf8Error};
 use quick_xml::events::attributes::AttrError;
+use png::DecodingError;
 
 #[derive(Debug)] 
 pub struct Error {
@@ -74,6 +75,22 @@ impl From<String> for Error {
     fn from(value: String) -> Self {
         Error {
             message: value
+        }
+    }
+}
+
+impl From<TryFromIntError> for Error {
+    fn from(value: TryFromIntError) -> Self {
+        Error {
+            message: value.to_string()
+        }
+    }
+}
+
+impl From<DecodingError> for Error {
+    fn from(value: DecodingError) -> Self {
+        Error {
+            message: value.to_string()
         }
     }
 }

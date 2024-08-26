@@ -2,12 +2,15 @@ mod etl;
 mod data;
 mod errors;
 
+mod study;
+
 use std::fs::{create_dir_all, File};
-use std::io::{self, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::str;
 
 
+use etl::draw_map::DrawMapEtl;
 use etl::semantic_map::SemanticMapEtl;
 use serde::Deserialize;
 use structured_logger::json::new_writer;
@@ -51,16 +54,28 @@ fn setup_logging() {
 }
 
 fn main() -> Result<()> {
+    // study::run();
+    // Ok(())
+
     setup_logging();
 
-    let user_config = load_user_config("../config/london_full.json");
+    //let user_config = load_user_config("../config/london_full.json");
+    let user_config = load_user_config("../config/london_center.json");
     let output_dir = create_output_dir(&user_config)?;
 
-    let mut parse_osm_etl = ParseOsmEtl::new(&user_config);
-    let mut semantic_map_etl = SemanticMapEtl::new();
-
-    parse_osm_etl.process(&output_dir)?;
-    semantic_map_etl.process(&output_dir)?;
+    // Limit ETL Scope so that memory can be freed as early as possible
+    {
+        let mut parse_osm_etl = ParseOsmEtl::new(&user_config);
+        parse_osm_etl.process(&output_dir)?;
+    }
+    {
+        let mut semantic_map_etl = SemanticMapEtl::new();
+        semantic_map_etl.process(&output_dir)?;
+    }
+    {
+        let mut draw_map_etl = DrawMapEtl::new(&user_config);
+        draw_map_etl.process(&output_dir)?;
+    }
 
     Ok(())
 }

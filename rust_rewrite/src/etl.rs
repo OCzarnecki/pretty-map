@@ -1,3 +1,4 @@
+pub mod draw_map;
 pub mod parse_osm;
 pub mod semantic_map;
 

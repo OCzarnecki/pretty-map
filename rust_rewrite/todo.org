@@ -1,0 +1,17 @@
+* TODO Make big roads bigger and visually distinctive
+  Draw them over small roads so that they don't get too big
+  Follow the OSM tiers for a start: red, orange, yellow, white, footway
+
+* TODO Draw parks, woods, bodies of water
+
+* TODO Draw tube stations
+  - [ ] Draw the images
+  - [ ] Draw the names
+
+* TODO Draw tube lines in the right colours
+
+* TODO Draw Boroughs
+
+* TODO Try drawing buildings in a very fine stroke
+
+* TODO Try drawing tiny icons for churches, pubs, hospitals, benches, trees, tube station emergency exits
