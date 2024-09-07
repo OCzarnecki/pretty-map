@@ -9,12 +9,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::str;
 
-
 use etl::draw_map::DrawMapEtl;
 use etl::semantic_map::SemanticMapEtl;
 use serde::Deserialize;
 use structured_logger::json::new_writer;
 use structured_logger::Builder;
+use raqote::Color;
 
 use crate::etl::parse_osm::ParseOsmEtl;
 use crate::etl::Etl;
@@ -30,6 +30,65 @@ pub struct UserConfig {
     pub px_per_deg_lat: f64,
     pub width_px: u64,
     pub height_px: u64,
+    #[serde(with = "serialize_color")]
+    pub test_color: Color,
+}
+
+mod serialize_color {
+    use std::collections::HashMap;
+
+    use raqote::Color;
+    use serde::{de, Deserialize, Deserializer, Serializer};
+    use serde::de::{MapAccess, Visitor};
+
+
+    struct ColorVisitor;
+
+    impl<'de> Visitor<'de> for ColorVisitor {
+        type Value = raqote::Color;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "a JSON dictionary containg 'r', 'g', 'b', and 'a' keys")
+        }
+
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where A: MapAccess<'de> {
+            let mut validated_rgb_map: HashMap<String, u8> = HashMap::new();
+            while let Some((key, val)) = map.next_entry::<String, u8>()? {
+                if key == "r" || key == "g" || key == "b" || key == "a" {
+                    if validated_rgb_map.contains_key(&key) {
+                        return Err(de::Error::invalid_value(de::Unexpected::Str(&key), &self))
+                    }
+                    validated_rgb_map.insert(key, val);
+                } else {
+                    return Err(de::Error::invalid_value(de::Unexpected::Str(&key), &self))
+                }
+            }
+            Ok(Color::new(
+                validated_rgb_map["a"],
+                validated_rgb_map["r"],
+                validated_rgb_map["g"],
+                validated_rgb_map["b"],
+            ))
+    }
+}
+
+
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<raqote::Color, D::Error>
+        where D: Deserializer<'de> {
+        deserializer.deserialize_map(ColorVisitor)
+    }
+
+    pub fn serialize<S>(
+        color: &raqote::Color,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+        todo!("")
+    }
+
 }
 
 fn load_user_config(path: &str) -> UserConfig {
