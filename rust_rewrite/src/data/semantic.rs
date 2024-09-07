@@ -8,8 +8,8 @@ pub struct SemanticMapElements {
     pub underground_stations: Vec<TransportStation>,
     pub rails: Vec<Path>,
     pub roads: Vec<Path>,
-    pub narrow_waterways: Vec<Path>,
     pub areas: Vec<Area>,
+    pub landmarks: Vec<Landmark>,
 }
 
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
@@ -163,4 +163,30 @@ impl Area {
 pub enum AreaType {
     Park,
     Water,
+}
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
+pub struct Landmark {
+    pub lon: f64,
+    pub lat: f64,
+    pub landmark_type: LandmarkType,
+}
+
+impl From<&Landmark> for MapCoords {
+    fn from(value: &Landmark) -> Self {
+        MapCoords {
+            lat: value.lat,
+            lon: value.lon,
+        }
+    }
+}
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
+pub enum LandmarkType {
+    Lgbtq,
+    LgbtqMen,
+    CocktailBar,
+    Hospital,
+    Tree,
+    TubeEmergencyExit,
 }

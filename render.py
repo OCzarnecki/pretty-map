@@ -5,7 +5,7 @@ import xml.sax
 from config import Config
 from osm import FeatureType, NodeProperties
 from projection import Mercantor
-from renderer import SVGRenderer
+from renderer import SVGRenderer, PILRenderer
 
 
 class OSMParseException(Exception):
@@ -25,8 +25,15 @@ class RenderingParser(xml.sax.handler.ContentHandler):
         self.current_way_id = None
         self.feature_type = None
         self.current_relation_ways = []
+        self.count = 0
+
+    def _update_count(self):
+        self.count += 1
+        if self.count % 1000 == 0:
+            print(f"Read {self.count:10d} XML elements", end="\r")
 
     def startElement(self, name, attrs: xml.sax.xmlreader.AttributesImpl):
+        self._update_count()
         if name == 'node':
             self.current_node_id = int(attrs.getValue('id'))
             self.nodes[self.current_node_id] = (float(attrs.getValue('lon')), float(attrs.getValue('lat')))
@@ -115,7 +122,12 @@ class RenderingParser(xml.sax.handler.ContentHandler):
 def render(config):
     xml_parser = xml.sax.make_parser()
 
-    renderer = SVGRenderer(config.dest_path, Mercantor.from_config(config))
+    # renderer = SVGRenderer(config.dest_path, Mercantor.from_config(config))
+    renderer = PILRenderer(
+        config.dest_path,
+        Mercantor.from_config(config),
+        (config.width_px, config.height_px),
+    )
     rendering_parser = RenderingParser(renderer)
     xml_parser.setContentHandler(rendering_parser)
 

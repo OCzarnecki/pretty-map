@@ -1,6 +1,6 @@
 use std::{str, collections::HashMap, fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}};
 
-use crate::{data::{osm::{Node, OsmId, OsmMapData, Relation, Way}, semantic::{Area, AreaType, SemanticMapElements, TransportStation, TransportStationType}}, errors::Result};
+use crate::{data::{osm::{Node, OsmId, OsmMapData, Relation, Way}, semantic::{Area, AreaType, Landmark, LandmarkType, SemanticMapElements, TransportStation, TransportStationType}}, errors::Result};
 use crate::etl::parse_osm;
 
 use super::Etl;
@@ -73,6 +73,27 @@ impl SemanticMapEtl {
                     );
                 }
             }
+            let maybe_landmark_type = if Self::has_kv_pair(&node.tags, b"lgbtq:men", b"only")
+                || Self::has_kv_pair(&node.tags, b"lgbtq:men", b"primary") {
+                    Some(LandmarkType::LgbtqMen)
+            } else if Self::has_kv_pair(&node.tags, b"lgbtq", b"primary") {
+                Some(LandmarkType::Lgbtq)
+            } else if Self::has_kv_pair(&node.tags, b"bar", b"cocktail")
+                || Self::has_kv_pair(&node.tags, b"cocktails", b"yes")
+                || Self::has_kv_pair(&node.tags, b"drink:cocktail", b"served") {
+                Some(LandmarkType::CocktailBar)
+            } else {
+                None
+            };
+            if let Some(landmark_type) = maybe_landmark_type {
+                output.landmarks.push(
+                    Landmark{
+                        lon: node.lon,
+                        lat: node.lat,
+                        landmark_type,
+                    }
+                );
+            }
         }
     }
 
@@ -84,14 +105,6 @@ impl SemanticMapEtl {
             if Self::has_key(&way.tags, b"highway") {
                 output.roads.push(way.into());
             }
-            /*
-            if Self::has_kv_pair(&way.tags, b"waterway", b"river")
-                || Self::has_kv_pair(&way.tags, b"waterway", b"canal")
-                || Self::has_kv_pair(&way.tags, b"waterway", b"ditch")
-                || Self::has_kv_pair(&way.tags, b"waterway", b"drain") {
-                output.narrow_waterways.push(way.into());
-            }
-            */
             if Self::has_kv_pair(&way.tags, b"leisure", b"park") {
                 output.areas.push(
                     Area::new(

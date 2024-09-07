@@ -1,5 +1,10 @@
 from abc import ABC, abstractmethod
 
+from PIL import Image, ImageDraw
+from functools import cache
+
+# import aggdraw as ag
+
 from osm import FeatureType, NodeProperties
 from projection import Projection
 from svg import Generator
@@ -9,6 +14,62 @@ class Renderer(ABC):
     @abstractmethod
     def draw_way(self):
         ...
+
+    @abstractmethod
+    def finalize(self):
+        ...
+
+    @abstractmethod
+    def draw_node(self):
+        ...
+
+    @abstractmethod
+    def draw_relation(self):
+        ...
+
+
+class PILRenderer(Renderer):
+    def __init__(self, output_path: str, projection: Projection, dims_px: tuple[int, int]):
+        self.output_path = output_path
+        self.projection = projection
+        self.img = Image.new("RGB", dims_px, 0xFFFFFF)
+        self.d = ImageDraw.Draw(self.img)
+
+    def draw_way(self, way: list[tuple[float, float]], feature_type: FeatureType):
+        if feature_type == FeatureType.UNKNOWN or feature_type == FeatureType.BUILDING:
+            return
+        if len(way) < 2:
+            return
+        args = self._get_draw_args(feature_type)
+        self.d.line(way, **args)
+
+    def finalize(self):
+        self.img.save(self.output_path, "PNG")
+
+    def draw_node(self, *args, **kwargs):
+        pass
+
+    def draw_relation(self, *args, **kwargs):
+        pass
+
+    @cache
+    def _get_draw_args(self, feature_type: FeatureType):
+        if feature_type == FeatureType.WATER_BODY:
+            # fill
+            return {"fill": "lightblue", "width": 5}
+        elif feature_type == FeatureType.WATERWAY:
+            return {"fill": "blue", "width": 5}
+        elif feature_type == FeatureType.RAILWAY:
+            return {"fill": "grey", "width": 5}
+        elif feature_type == FeatureType.PARK:
+            # fill
+            return {"fill": "lightgreen", "width": 5}
+        elif feature_type == FeatureType.BUILDING:
+            return {"fill": "black", "width": 5}
+        elif feature_type == FeatureType.UNDERGROUND:
+            return {"fill": "red", "width": 10}
+        else:
+            return {"fill": "black", "width": 10}
 
 
 class SVGRenderer(Renderer):

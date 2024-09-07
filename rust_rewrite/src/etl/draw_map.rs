@@ -5,7 +5,7 @@ use raqote::{AntialiasMode, BlendMode, DrawOptions, DrawTarget, Image, LineCap, 
 
 use crate::{
     data::semantic::{
-        self, Area, MapCoords, SemanticMapElements, TransportStation
+        self, Area, Landmark, MapCoords, SemanticMapElements, TransportStation
     },
     errors::Result, UserConfig
 };
@@ -26,7 +26,6 @@ pub const OUTPUT_FILE_NAME: &str = "output.png";
 enum PathStyle {
     Road,
     Rail,
-    NarrowWaterway,
 }
 
 pub struct OwnedImage {
@@ -41,6 +40,8 @@ pub struct DrawMapEtl <'a> {
     overground_logo: OwnedImage,
     dlr_logo: OwnedImage,
     elizabeth_line_logo: OwnedImage,
+    lgbtq_logo: OwnedImage,
+    cocktail_logo: OwnedImage,
     font: fk::Font,
 }
 
@@ -119,19 +120,6 @@ impl DrawMapEtl<'_> {
                     &draw_options,
                 );
             },
-            PathStyle::NarrowWaterway => {
-                dt.stroke(
-                    &raquote_path,
-                    &Source::Solid(SolidSource {
-                        r: 0x0,
-                        g: 0x0,
-                        b: 0x80,
-                        a: 0x80,
-                    }),
-                    &Self::stroke(10.0),
-                    &draw_options,
-                );
-            },
         }
     }
 
@@ -207,6 +195,8 @@ impl DrawMapEtl<'_> {
             overground_logo: Self::load_image("overground").unwrap(),
             elizabeth_line_logo: Self::load_image("elizabeth").unwrap(),
             dlr_logo: Self::load_image("dlr").unwrap(),
+            lgbtq_logo: Self::load_image("lgbtq").unwrap(),
+            cocktail_logo: Self::load_image("cocktail").unwrap(),
             font,
         }
     }
@@ -299,6 +289,41 @@ impl DrawMapEtl<'_> {
             );
         }
     }
+
+    fn draw_landmark(&self, dt: &mut DrawTarget, landmark: &Landmark) {
+        let (x_center, y_center) = self.project_mercantor(&landmark.into());
+        let width = 32.0;
+        let height = 32.0;
+
+        let logo = match landmark.landmark_type {
+            semantic::LandmarkType::LgbtqMen => &self.lgbtq_logo,
+            semantic::LandmarkType::Lgbtq => &self.lgbtq_logo,
+            semantic::LandmarkType::CocktailBar => {
+                eprintln!("{} {} {} {}", landmark.lon, landmark.lat, x_center, y_center);
+                &self.cocktail_logo
+            },
+            _ => todo!(),
+        };
+
+        let img = Image {
+            width: self.underground_logo.width,
+            height: self.underground_logo.height,
+            data: &logo.data,
+        };
+
+        let mut draw_options = DrawOptions::new();
+        draw_options.blend_mode = BlendMode::SrcOver;
+
+        // dt.draw_image_at(
+        dt.draw_image_with_size_at(
+            width,
+            height,
+            x_center - width / 2.0,
+            y_center - height / 2.0,
+            &img,
+            &draw_options,
+        );
+    }
 }
 
 impl Etl for DrawMapEtl<'_> {
@@ -342,11 +367,11 @@ impl Etl for DrawMapEtl<'_> {
         for rail in input.rails {
             self.draw_semantic_path(&mut dt, &rail, &PathStyle::Rail);
         }
-        for waterway in input.narrow_waterways {
-            self.draw_semantic_path(&mut dt, &waterway, &PathStyle::NarrowWaterway);
-        }
         for station in input.underground_stations {
             self.draw_undergound_station(&mut dt, &station);
+        }
+        for landmark in input.landmarks {
+            self.draw_landmark(&mut dt, &landmark);
         }
         Ok(dt)
     }

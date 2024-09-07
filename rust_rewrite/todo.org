@@ -2,11 +2,13 @@
   Draw them over small roads so that they don't get too big
   Follow the OSM tiers for a start: red, orange, yellow, white, footway
 
-* TODO Draw parks, woods, bodies of water
+* DONE Draw parks, woods, bodies of water
 
-* TODO Draw tube stations
-  - [ ] Draw the images
-  - [ ] Draw the names
+* DONE Draw tube stations
+  - [x] Draw the images
+  - [x] Draw the names
+
+* TODO Combine tube stations with the same name
 
 * TODO Draw tube lines in the right colours
 
@@ -14,4 +16,12 @@
 
 * TODO Try drawing buildings in a very fine stroke
 
-* TODO Try drawing tiny icons for churches, pubs, hospitals, benches, trees, tube station emergency exits
+* TODO Try drawing tiny icons for churches
+ - [ ] pubs
+ - [ ] hospitals
+ - [ ] benches
+ - [ ] trees
+ - [ ] tube station emergency exits
+ - [x] queer venues
+
+* TODO Put all colors into the config
