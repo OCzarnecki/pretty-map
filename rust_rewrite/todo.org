@@ -17,11 +17,10 @@
 * TODO Try drawing buildings in a very fine stroke
 
 * TODO Try drawing tiny icons for churches
- - [ ] pubs
- - [ ] hospitals
- - [ ] benches
- - [ ] trees
+ - [p] hospitals
+ - [p] trees
  - [ ] tube station emergency exits
  - [x] queer venues
+ - [ ] cocktail bars
 
-* TODO Put all colors into the config
+* DONE Put all colors into the config

@@ -1,6 +1,22 @@
 use std::{str, collections::HashMap, fs::{self, File}, io::{Read, Write}, path::{Path, PathBuf}};
 
-use crate::{data::{osm::{Node, OsmId, OsmMapData, Relation, Way}, semantic::{Area, AreaType, Landmark, LandmarkType, SemanticMapElements, TransportStation, TransportStationType}}, errors::Result};
+use crate::{
+    data::{
+        osm::{Node, OsmId, OsmMapData, Relation, Way},
+        semantic::{
+            Area,
+            AreaType,
+            Landmark,
+            LandmarkType,
+            SemanticMapElements,
+            TransportStation,
+            TransportStationType,
+            TubeLine,
+            TubeRail,
+        }
+    },
+    errors::Result,
+};
 use crate::etl::parse_osm;
 
 use super::Etl;
@@ -33,10 +49,14 @@ impl SemanticMapEtl {
         }
     }
 
-    fn get_string(tags: &HashMap<Vec<u8>, Vec<u8>>, key: &[u8]) -> String {
+    fn get_string(tags: &HashMap<Vec<u8>, Vec<u8>>, key: &[u8]) -> Option<String> {
         let key_vec = key.to_vec();
-        let val_vec = tags.get(&key_vec).unwrap();
-        return unescape(str::from_utf8(val_vec).unwrap()).unwrap().to_string();
+        let val_vec = tags.get(&key_vec)?;
+        return Some(
+            unescape(
+                str::from_utf8(val_vec).ok()?
+            ).ok()?.to_string()
+        );
     }
 
     fn process_nodes(&mut self, output: &mut SemanticMapElements, nodes: &HashMap<OsmId, Node>) {
@@ -45,7 +65,7 @@ impl SemanticMapEtl {
                 // && Self::has_kv_pair(&node.tags, b"subway", b"yes")
                 && Self::has_key(&node.tags, b"name") {
 
-                let name = Self::get_string(&node.tags, b"name");
+                let name = Self::get_string(&node.tags, b"name").unwrap();
 
                 // Some names are like "Edgeware Road (Bakerloo line)", we want to strip the
                 // brackets.
@@ -74,7 +94,8 @@ impl SemanticMapEtl {
                 }
             }
             let maybe_landmark_type = if Self::has_kv_pair(&node.tags, b"lgbtq:men", b"only")
-                || Self::has_kv_pair(&node.tags, b"lgbtq:men", b"primary") {
+                || Self::has_kv_pair(&node.tags, b"lgbtq:men", b"primary")
+                || Self::has_kv_pair(&node.tags, b"gay", b"yes") {
                     Some(LandmarkType::LgbtqMen)
             } else if Self::has_kv_pair(&node.tags, b"lgbtq", b"primary") {
                 Some(LandmarkType::Lgbtq)
@@ -82,6 +103,11 @@ impl SemanticMapEtl {
                 || Self::has_kv_pair(&node.tags, b"cocktails", b"yes")
                 || Self::has_kv_pair(&node.tags, b"drink:cocktail", b"served") {
                 Some(LandmarkType::CocktailBar)
+            } else if Self::has_kv_pair(&node.tags, b"emergency", b"emergency_ward_entrance")
+                || Self::has_kv_pair(&node.tags, b"healthcare", b"emergency_ward") {
+                Some(LandmarkType::Hospital)
+            } else if Self::has_kv_pair(&node.tags, b"natural", b"tree") {
+                Some(LandmarkType::Tree)
             } else {
                 None
             };
@@ -99,9 +125,6 @@ impl SemanticMapEtl {
 
     fn process_ways(&mut self, output: &mut SemanticMapElements, ways: &HashMap<OsmId, Way>) {
         for way in ways.values() {
-            if Self::has_kv_pair(&way.tags, b"railway", b"rail") {
-                output.rails.push(way.into());
-            }
             if Self::has_key(&way.tags, b"highway") {
                 output.roads.push(way.into());
             }
@@ -122,6 +145,34 @@ impl SemanticMapEtl {
                         &vec![way.into()],
                     )
                 );
+            }
+            if Self::has_kv_pair(&way.tags, b"railway", b"subway") && Self::has_key(&way.tags, b"line") {
+                if let Some(line) = match Self::get_string(&way.tags, b"line").unwrap().to_lowercase().as_str() {
+                    "bakerloo" => Some(TubeLine::Bakerloo),
+                    "central" | "central line" => Some(TubeLine::Central),
+                    "circle" => Some(TubeLine::Circle),
+                    "deep level district" | "district" | "district, north london" | "district, piccadilly" => Some(TubeLine::District),
+                    "dlr" => Some(TubeLine::Dlr),
+                    "elizabeth" => Some(TubeLine::Elizabeth),
+                    "hammersmith & city" => Some(TubeLine::HammersmithAndCity),
+                    "jubilee" | "jubilee line" => Some(TubeLine::Jubilee),
+                    "metropolitan" | "metropolitan, piccadilly" => Some(TubeLine::Metropolitan),
+                    "northern" | "northern city" | "northern line" => Some(TubeLine::Northern),
+                    "picadilly" | "piccadilly" => Some(TubeLine::Piccadilly),
+                    "victoria" => Some(TubeLine::Victoria),
+                    "waterloo & city" => Some(TubeLine::WaterlooAndCity),
+                    other => {
+                        //eprintln!("Unknown line! {:?}", other);
+                        None
+                    },
+                } {
+                    output.tube_rails.push(TubeRail {
+                        line,
+                        path: way.into(),
+                    });
+                }
+            } else if Self::has_kv_pair(&way.tags, b"railway", b"rail") {
+                output.rails.push(way.into());
             }
         }
     }

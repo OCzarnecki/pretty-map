@@ -10,6 +10,7 @@ pub struct SemanticMapElements {
     pub roads: Vec<Path>,
     pub areas: Vec<Area>,
     pub landmarks: Vec<Landmark>,
+    pub tube_rails: Vec<TubeRail>,
 }
 
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
@@ -189,4 +190,28 @@ pub enum LandmarkType {
     Hospital,
     Tree,
     TubeEmergencyExit,
+}
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
+pub struct TubeRail {
+    pub line: TubeLine,
+    pub path: Path,
+}
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
+pub enum TubeLine {
+    Bakerloo,
+    Central,
+    Circle,
+    District,
+    Dlr,
+    Elizabeth,
+    HammersmithAndCity,
+    Jubilee,
+    Metropolitan,
+    Northern,
+    Overground,  // Not technically a tube line, sue me
+    Piccadilly,
+    Victoria,
+    WaterlooAndCity,
 }

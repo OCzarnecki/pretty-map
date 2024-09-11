@@ -1,23 +1,21 @@
 use std::{fs::{self, File}, io::Read, path::{Path, PathBuf}};
 
 use png::{self, BitDepth};
-use raqote::{AntialiasMode, BlendMode, DrawOptions, DrawTarget, Image, LineCap, LineJoin, PathBuilder, Point, SolidSource, Source, StrokeStyle};
+use raqote::{BlendMode, DrawOptions, DrawTarget, Image, LineCap, LineJoin, PathBuilder, Point, SolidSource, Source, StrokeStyle};
+use serde::Deserialize;
 
 use crate::{
     data::semantic::{
         self, Area, Landmark, MapCoords, SemanticMapElements, TransportStation
     },
-    errors::Result, UserConfig
+    errors::Result, UserConfig,
 };
 
 use super::{semantic_map, Etl};
 
 mod fk {
-    pub use font_kit::canvas::{Canvas, Format, RasterizationOptions};
     pub use font_kit::font::Font;
-    pub use font_kit::hinting::HintingOptions;
-    pub use pathfinder_geometry::transform2d::Transform2F;
-    pub use pathfinder_geometry::vector::{vec2f, vec2i};
+    pub use pathfinder_geometry::vector::vec2f;
 }
 
 pub const ETL_NAME: &str = "draw_map";
@@ -34,8 +32,69 @@ pub struct OwnedImage {
     pub data: Vec<u32>,
 }
 
+use serialize_color::deserialize;
+
+#[derive(Deserialize)]
+pub struct Theme<'a> {
+    #[serde(deserialize_with = "deserialize")]
+    pub road_color: Source<'a>,
+
+    #[serde(deserialize_with = "deserialize")]
+    pub rail_color: Source<'a>,
+
+    #[serde(deserialize_with = "deserialize")]
+    pub text_color: Source<'a>,
+
+    #[serde(deserialize_with = "deserialize")]
+    pub water_color: Source<'a>,
+
+    #[serde(deserialize_with = "deserialize")]
+    pub park_color: Source<'a>,
+}
+
+mod serialize_color {
+    use raqote::{SolidSource, Source};
+    use serde::{de, Deserializer};
+    use serde::de::Visitor;
+
+
+    struct ColorVisitor;
+
+    impl<'de> Visitor<'de> for ColorVisitor {
+        type Value = SolidSource;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "a JSON dictionary containg 'r', 'g', 'b', and 'a' keys")
+        }
+
+        fn visit_str<E>(self, string: &str) -> Result<Self::Value, E> where E: de::Error {
+            if string.len() != 9 {
+                return Err(de::Error::invalid_value(de::Unexpected::Str(string), &self))
+            }
+            let r = parse_hex_byte(&self, &string[1..3])?;
+            let g = parse_hex_byte(&self, &string[3..5])?;
+            let b = parse_hex_byte(&self, &string[5..7])?;
+            let a = parse_hex_byte(&self, &string[7..9])?;
+            Ok(SolidSource::from_unpremultiplied_argb(a, r, g, b))
+        }
+    }
+
+    fn parse_hex_byte<E>(visitor: &ColorVisitor, string: &str) -> Result<u8, E> where E: de::Error {
+        u8::from_str_radix(string, 16).map_err(|_| {
+            de::Error::invalid_value(de::Unexpected::Str(string), visitor)
+        })
+    }
+
+    pub fn deserialize<'de, 'a, D>(
+        deserializer: D,
+    ) -> Result<Source<'a>, D::Error>
+        where D: Deserializer<'de>, 'a: 'de {
+        Ok(Source::Solid(deserializer.deserialize_str(ColorVisitor)?))
+    }
+}
+
 pub struct DrawMapEtl <'a> {
-    user_config: &'a UserConfig,
+    user_config: &'a UserConfig<'a>,
     underground_logo: OwnedImage,
     overground_logo: OwnedImage,
     dlr_logo: OwnedImage,
@@ -43,6 +102,7 @@ pub struct DrawMapEtl <'a> {
     lgbtq_logo: OwnedImage,
     cocktail_logo: OwnedImage,
     font: fk::Font,
+    theme: &'a Theme<'a>,
 }
 
 impl DrawMapEtl<'_> {
@@ -90,25 +150,15 @@ impl DrawMapEtl<'_> {
             PathStyle::Road => {
                 dt.stroke(
                     &raquote_path,
-                    &Source::Solid(SolidSource {
-                        r: 0xB,
-                        g: 0xB,
-                        b: 0xB,
-                        a: 0x40,
-                    }),
-                    &Self::stroke(10.0),
+                    &self.theme.road_color,
+                    &Self::stroke(6.0),
                     &draw_options,
                 );
             },
             PathStyle::Rail => {
                 dt.stroke(
                     &raquote_path,
-                    &Source::Solid(SolidSource {
-                        r: 0x60,
-                        g: 0x60,
-                        b: 0x60,
-                        a: 0x80,
-                    }),
+                    &self.theme.rail_color,
                     &StrokeStyle {
                         cap: LineCap::Round,
                         join: LineJoin::Round,
@@ -123,6 +173,48 @@ impl DrawMapEtl<'_> {
         }
     }
 
+    fn draw_tube_rail(&self, dt: &mut DrawTarget, tube_rail: &semantic::TubeRail) {
+        let semantic_path = &tube_rail.path;
+        if semantic_path.len() < 2 {
+            return;
+        }
+        let mut pb = PathBuilder::new();
+        let (x0, y0) = self.project_mercantor(&semantic_path[0]);
+        pb.move_to(x0, y0);
+
+        for coords in &semantic_path[1..] {
+            let (x, y) = self.project_mercantor(coords);
+            pb.line_to(x, y);
+        }
+        let raquote_path = pb.finish();
+
+        let draw_options = DrawOptions::new();
+
+        dt.stroke(
+            &raquote_path,
+            &Source::Solid(
+                match tube_rail.line {
+                    semantic::TubeLine::Bakerloo => SolidSource::from_unpremultiplied_argb(0xff, 0x89, 0x4e, 0x24),
+                    semantic::TubeLine::Central => SolidSource::from_unpremultiplied_argb(0xff, 0xDC, 0x24, 0x1f),
+                    semantic::TubeLine::Circle => SolidSource::from_unpremultiplied_argb(0xff, 0xFF, 0xCE, 0x00),
+                    semantic::TubeLine::District => SolidSource::from_unpremultiplied_argb(0xff, 0x00, 0x72, 0x29),
+                    semantic::TubeLine::Dlr => SolidSource::from_unpremultiplied_argb(0xff, 0x00, 0xaf, 0xad),
+                    semantic::TubeLine::Elizabeth => SolidSource::from_unpremultiplied_argb(0xff, 0x69, 0x50, 0xa1),
+                    semantic::TubeLine::HammersmithAndCity => SolidSource::from_unpremultiplied_argb(0xff, 0xd7, 0x99, 0xaf),
+                    semantic::TubeLine::Jubilee => SolidSource::from_unpremultiplied_argb(0xff, 0x6a, 0x72, 0x78),
+                    semantic::TubeLine::Metropolitan => SolidSource::from_unpremultiplied_argb(0xff, 0x75, 0x10, 0x56),
+                    semantic::TubeLine::Northern => SolidSource::from_unpremultiplied_argb(0xff, 0x00, 0x00, 0x00),
+                    semantic::TubeLine::Overground => SolidSource::from_unpremultiplied_argb(0xff, 0xe8, 0x6a, 0x10),
+                    semantic::TubeLine::Piccadilly => SolidSource::from_unpremultiplied_argb(0xff, 0x00, 0x19, 0xa8),
+                    semantic::TubeLine::Victoria => SolidSource::from_unpremultiplied_argb(0xff, 0x00, 0xa0, 0xe2),
+                    semantic::TubeLine::WaterlooAndCity => SolidSource::from_unpremultiplied_argb(0xff, 0x76, 0xd0, 0xbd),
+                }
+            ),
+            &Self::stroke(10.0),
+            &draw_options,
+        );
+    }
+
     fn draw_text(
         &self,
         dt: &mut DrawTarget,
@@ -131,7 +223,7 @@ impl DrawMapEtl<'_> {
         point_size: f32,
         text: &str,
     ) {
-        let source = Source::Solid(SolidSource::from_unpremultiplied_argb(255, 0, 0, 0));
+        let source = &self.theme.text_color;
         let options = DrawOptions::new();
         let mut start = fk::vec2f(x, y);
         let mut ids = Vec::new();
@@ -184,7 +276,7 @@ impl DrawMapEtl<'_> {
         // dt.draw_image_at(x_center, y_center, &img, &DrawOptions::new());
     }
 
-    pub fn new(user_config: &UserConfig) -> DrawMapEtl {
+    pub fn new<'a>(user_config: &'a UserConfig<'a>) -> DrawMapEtl<'a> {
         let font = font_kit::loader::Loader::from_file(
             &mut std::fs::File::open("resources/fonts/Domine-Bold.ttf").unwrap(), 0
         ).unwrap();
@@ -198,6 +290,7 @@ impl DrawMapEtl<'_> {
             lgbtq_logo: Self::load_image("lgbtq").unwrap(),
             cocktail_logo: Self::load_image("cocktail").unwrap(),
             font,
+            theme: &user_config.theme,
         }
     }
 
@@ -272,18 +365,8 @@ impl DrawMapEtl<'_> {
             dt.fill(
                 &raquote_path,
                 match area.area_type {
-                    semantic::AreaType::Park => &Source::Solid(SolidSource {
-                        r: 0x60,
-                        g: 0xFF,
-                        b: 0x60,
-                        a: 0xFF,
-                    }),
-                    semantic::AreaType::Water => &Source::Solid(SolidSource {
-                        r: 0x00,
-                        g: 0x40,
-                        b: 0x40,
-                        a: 0xFF,
-                    }),
+                    semantic::AreaType::Park => &self.theme.park_color,
+                    semantic::AreaType::Water => &self.theme.water_color,
                 },
                 &draw_options,
             );
@@ -295,13 +378,16 @@ impl DrawMapEtl<'_> {
         let width = 32.0;
         let height = 32.0;
 
+        if let semantic::LandmarkType::Tree = landmark.landmark_type {
+            return
+        }
+
         let logo = match landmark.landmark_type {
             semantic::LandmarkType::LgbtqMen => &self.lgbtq_logo,
             semantic::LandmarkType::Lgbtq => &self.lgbtq_logo,
-            semantic::LandmarkType::CocktailBar => {
-                eprintln!("{} {} {} {}", landmark.lon, landmark.lat, x_center, y_center);
-                &self.cocktail_logo
-            },
+            semantic::LandmarkType::CocktailBar => &self.cocktail_logo,
+            semantic::LandmarkType::Hospital => &self.cocktail_logo,
+            //semantic::LandmarkType::Tree => &self.cocktail_logo,
             _ => todo!(),
         };
 
@@ -366,6 +452,9 @@ impl Etl for DrawMapEtl<'_> {
         }
         for rail in input.rails {
             self.draw_semantic_path(&mut dt, &rail, &PathStyle::Rail);
+        }
+        for rail in input.tube_rails {
+            self.draw_tube_rail(&mut dt, &rail);
         }
         for station in input.underground_stations {
             self.draw_undergound_station(&mut dt, &station);

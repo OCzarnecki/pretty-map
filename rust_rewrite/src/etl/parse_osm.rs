@@ -27,7 +27,7 @@ enum ParserState {
 }
 
 pub struct ParseOsmEtl<'a> {
-    config: &'a UserConfig,
+    config: &'a UserConfig<'a>,
     state: ParserState,
 
     nodes: HashMap<u64, Node>,
@@ -216,7 +216,7 @@ impl ParseOsmEtl<'_> {
         Ok(())
     }
 
-    pub fn new(config: &UserConfig) -> ParseOsmEtl {
+    pub fn new<'a>(config: &'a UserConfig<'a>) -> ParseOsmEtl<'a> {
         ParseOsmEtl {
             config,
             state: ParserState::Top,
