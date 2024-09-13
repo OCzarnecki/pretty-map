@@ -1,4 +1,5 @@
-use std::{fs::{self, File}, io::Read, path::{Path, PathBuf}};
+use core::f64;
+use std::{cmp::Ordering, fs::{self, File}, io::Read, path::{Path, PathBuf}};
 
 use png::{self, BitDepth};
 use raqote::{BlendMode, DrawOptions, DrawTarget, Image, LineCap, LineJoin, PathBuilder, Point, SolidSource, Source, StrokeStyle};
@@ -174,17 +175,55 @@ impl DrawMapEtl<'_> {
     }
 
     fn draw_tube_rail(&self, dt: &mut DrawTarget, tube_rail: &semantic::TubeRail) {
+        fn wiggle(n: u64, n_max: u64, r: f64) -> (f64, f64) {
+            let angle = (n as f64) / (n_max as f64) * f64::consts::TAU;
+            (angle.cos() * r, angle.sin() * r)
+        }
+
         let semantic_path = &tube_rail.path;
         if semantic_path.len() < 2 {
             return;
         }
         let mut pb = PathBuilder::new();
-        let (x0, y0) = self.project_mercantor(&semantic_path[0]);
-        pb.move_to(x0, y0);
+
+        let offset_radius = 30.0;
+        let (dx, dy) = match tube_rail.line {
+            semantic::TubeLine::Bakerloo => wiggle(0, 14, offset_radius),
+            semantic::TubeLine::Central => wiggle(1, 14, offset_radius),
+            semantic::TubeLine::Circle => wiggle(2, 14, offset_radius),
+            semantic::TubeLine::District => wiggle(3, 14, offset_radius),
+            semantic::TubeLine::Dlr => wiggle(4, 14, offset_radius),
+            semantic::TubeLine::Elizabeth => wiggle(5, 14, offset_radius),
+            semantic::TubeLine::HammersmithAndCity => wiggle(6, 14, offset_radius),
+            semantic::TubeLine::Jubilee => wiggle(7, 14, offset_radius),
+            semantic::TubeLine::Metropolitan => wiggle(8, 14, offset_radius),
+            semantic::TubeLine::Northern => wiggle(9, 14, offset_radius),
+            semantic::TubeLine::Overground => wiggle(10, 14, offset_radius),
+            semantic::TubeLine::Piccadilly => wiggle(11, 14, offset_radius),
+            semantic::TubeLine::Victoria => wiggle(12, 14, offset_radius),
+            semantic::TubeLine::WaterlooAndCity => wiggle(13, 14, offset_radius),
+        };
+
+        let (dx, dy): (f32, f32) = (dx as f32, dy as f32);
+
+        let (x0, y0) = self.project_mercantor(
+            &semantic_path[0]
+            // &MapCoords {
+                // lat: semantic_path[0].lat + dy,
+                // lon: semantic_path[1].lon + dx,
+            // }
+        );
+        pb.move_to(x0 + dx, y0 + dy);
 
         for coords in &semantic_path[1..] {
-            let (x, y) = self.project_mercantor(coords);
-            pb.line_to(x, y);
+            let (x, y) = self.project_mercantor(
+                coords,
+                // &MapCoords {
+                    // lat: coords.lat + dy,
+                    // lon: coords.lon + dx,
+                // }
+            );
+            pb.line_to(x + dx, y + dy);
         }
         let raquote_path = pb.finish();
 
@@ -210,7 +249,7 @@ impl DrawMapEtl<'_> {
                     semantic::TubeLine::WaterlooAndCity => SolidSource::from_unpremultiplied_argb(0xff, 0x76, 0xd0, 0xbd),
                 }
             ),
-            &Self::stroke(10.0),
+            &Self::stroke(5.0),
             &draw_options,
         );
     }
@@ -453,7 +492,21 @@ impl Etl for DrawMapEtl<'_> {
         for rail in input.rails {
             self.draw_semantic_path(&mut dt, &rail, &PathStyle::Rail);
         }
-        for rail in input.tube_rails {
+
+        let mut sorted_rails = input.tube_rails.clone();
+        sorted_rails.sort_by(
+            |rail_a, rail_b| {
+                if rail_a.line < rail_b.line {
+                    Ordering::Less
+                } else if rail_a.line == rail_b.line {
+                    Ordering::Equal
+                } else {
+                    Ordering::Greater
+                }
+            }
+        );
+
+        for rail in sorted_rails {
             self.draw_tube_rail(&mut dt, &rail);
         }
         for station in input.underground_stations {

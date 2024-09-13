@@ -198,7 +198,7 @@ pub struct TubeRail {
     pub path: Path,
 }
 
-#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum TubeLine {
     Bakerloo,
     Central,

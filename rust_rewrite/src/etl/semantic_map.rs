@@ -52,11 +52,19 @@ impl SemanticMapEtl {
     fn get_string(tags: &HashMap<Vec<u8>, Vec<u8>>, key: &[u8]) -> Option<String> {
         let key_vec = key.to_vec();
         let val_vec = tags.get(&key_vec)?;
-        return Some(
+        Some(
             unescape(
                 str::from_utf8(val_vec).ok()?
             ).ok()?.to_string()
-        );
+        )
+    }
+
+    fn get_strings(tags: &HashMap<Vec<u8>, Vec<u8>>, key: &[u8]) -> Vec<String> {
+        Self::get_string(tags, key)
+            .map(|s| s.split(";").map(|s| s.to_string()).collect::<Vec<String>>())
+            .into_iter()
+            .flatten()
+            .collect()
     }
 
     fn process_nodes(&mut self, output: &mut SemanticMapElements, nodes: &HashMap<OsmId, Node>) {
@@ -146,30 +154,38 @@ impl SemanticMapEtl {
                     )
                 );
             }
-            if Self::has_kv_pair(&way.tags, b"railway", b"subway") && Self::has_key(&way.tags, b"line") {
-                if let Some(line) = match Self::get_string(&way.tags, b"line").unwrap().to_lowercase().as_str() {
-                    "bakerloo" => Some(TubeLine::Bakerloo),
-                    "central" | "central line" => Some(TubeLine::Central),
-                    "circle" => Some(TubeLine::Circle),
-                    "deep level district" | "district" | "district, north london" | "district, piccadilly" => Some(TubeLine::District),
-                    "dlr" => Some(TubeLine::Dlr),
-                    "elizabeth" => Some(TubeLine::Elizabeth),
-                    "hammersmith & city" => Some(TubeLine::HammersmithAndCity),
-                    "jubilee" | "jubilee line" => Some(TubeLine::Jubilee),
-                    "metropolitan" | "metropolitan, piccadilly" => Some(TubeLine::Metropolitan),
-                    "northern" | "northern city" | "northern line" => Some(TubeLine::Northern),
-                    "picadilly" | "piccadilly" => Some(TubeLine::Piccadilly),
-                    "victoria" => Some(TubeLine::Victoria),
-                    "waterloo & city" => Some(TubeLine::WaterlooAndCity),
-                    other => {
-                        //eprintln!("Unknown line! {:?}", other);
-                        None
-                    },
-                } {
-                    output.tube_rails.push(TubeRail {
-                        line,
-                        path: way.into(),
-                    });
+            if (
+                Self::has_kv_pair(&way.tags, b"railway", b"subway")
+                || Self::has_kv_pair(&way.tags, b"railway", b"rail")
+            ) && Self::has_key(&way.tags, b"line") {
+                for line_tag in Self::get_strings(&way.tags, b"line") {
+                    let lines = match line_tag.to_lowercase().as_str() {
+                        "bakerloo" => vec![TubeLine::Bakerloo],
+                        "central" | "central line" => vec![TubeLine::Central],
+                        "circle" => vec![TubeLine::Circle],
+                        "deep level district" | "district" | "district, north london" => vec![TubeLine::District],
+                        "district, piccadilly" => vec![TubeLine::District, TubeLine::Piccadilly],
+                        "dlr" => vec![TubeLine::Dlr],
+                        "elizabeth" => vec![TubeLine::Elizabeth],
+                        "hammersmith & city" => vec![TubeLine::HammersmithAndCity],
+                        "jubilee" | "jubilee line" => vec![TubeLine::Jubilee],
+                        "metropolitan" => vec![TubeLine::Metropolitan],
+                        "metropolitan, piccadilly" => vec![TubeLine::Metropolitan, TubeLine::Piccadilly],
+                        "northern" | "northern line" => vec![TubeLine::Northern],
+                        "northern city" => vec![TubeLine::Northern, TubeLine::HammersmithAndCity],
+                        "picadilly" | "piccadilly" => vec![TubeLine::Piccadilly],
+                        "victoria" => vec![TubeLine::Victoria],
+                        "waterloo & city" => vec![TubeLine::WaterlooAndCity],
+                        _ => {
+                            vec![]
+                        },
+                    };
+                    for line in lines {
+                        output.tube_rails.push(TubeRail {
+                            line,
+                            path: way.into(),
+                        });
+                    }
                 }
             } else if Self::has_kv_pair(&way.tags, b"railway", b"rail") {
                 output.rails.push(way.into());
