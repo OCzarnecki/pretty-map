@@ -344,7 +344,7 @@ impl DrawMapEtl<'_> {
         for position in &mut positions {
             position.x -= total_width * 0.5;
         }
-        dt.draw_glyphs(&self.font, point_size, &ids, &positions, &source, &options);
+        dt.draw_glyphs(&self.font, point_size, &ids, &positions, source, &options);
     }
 
     fn draw_undergound_station(&self, dt: &mut DrawTarget, station: &TransportStation) {
@@ -368,21 +368,20 @@ impl DrawMapEtl<'_> {
         let mut draw_options = DrawOptions::new();
         draw_options.blend_mode = BlendMode::SrcOver;
 
-        // dt.draw_image_at(
-        // dt.draw_image_with_size_at(
-        //     width,
-        //     height,
-        //     x_center - width / 2.0,
-        //     y_center - height / 2.0,
-        //     &img,
-        //     &draw_options,
-        // );
-        draw_image_raw(
-            dt,
-            logo,
-            (x_center - width  / 2.0) as i32,
-            (y_center - height / 2.0) as i32,
+        dt.draw_image_with_size_at(
+            width,
+            height,
+            x_center - width / 2.0,
+            y_center - height / 2.0,
+            &img,
+            &draw_options,
         );
+        // draw_image_raw(
+        //     dt,
+        //     logo,
+        //     (x_center - width  / 2.0) as i32,
+        //     (y_center - height / 2.0) as i32,
+        // );
 
         self.draw_text(dt, x_center, y_center + height / 2.0 + 15.0, 20.0, &station.name);
         // dt.draw_image_at(x_center, y_center, &img, &DrawOptions::new());
