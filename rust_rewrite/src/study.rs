@@ -2,18 +2,17 @@ use std::{fs::File, usize};
 
 use png::{BitDepth, ColorType};
 use raqote::*;
-use sw_composite::*;
 
 use crate::{
     errors::Result,
 };
 
 mod fk {
-    pub use font_kit::canvas::{Canvas, Format, RasterizationOptions};
+    
     pub use font_kit::font::Font;
-    pub use font_kit::hinting::HintingOptions;
-    pub use pathfinder_geometry::transform2d::Transform2F;
-    pub use pathfinder_geometry::vector::{vec2f, vec2i};
+    
+    
+    pub use pathfinder_geometry::vector::vec2f;
 }
 
 pub fn set_px(data: &mut [u32], width: i32, height: i32, x: i32, y: i32, color: u32) {

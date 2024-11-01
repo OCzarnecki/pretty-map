@@ -2,7 +2,7 @@ pub mod draw_map;
 pub mod parse_osm;
 pub mod semantic_map;
 
-use std::{fs, path::{Path, PathBuf}};
+use std::path::Path;
 use log::{info, error};
 
 use crate::errors::Result;
