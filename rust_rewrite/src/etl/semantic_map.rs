@@ -67,6 +67,57 @@ impl SemanticMapEtl {
             .collect()
     }
 
+    fn landmark_type_from_tags(&mut self, tags: &HashMap<Vec<u8>, Vec<u8>>) -> Option<LandmarkType> {
+        if Self::has_kv_pair(tags, b"lgbtq:men", b"only")
+            || Self::has_kv_pair(tags, b"lgbtq:men", b"primary")
+            || Self::has_kv_pair(tags, b"gay", b"yes") {
+                Some(LandmarkType::LgbtqMen)
+        } else if Self::has_kv_pair(tags, b"lgbtq", b"primary") {
+            Some(LandmarkType::Lgbtq)
+        } else if Self::has_kv_pair(tags, b"bar", b"cocktail")
+            || Self::has_kv_pair(tags, b"cocktails", b"yes")
+            || Self::has_kv_pair(tags, b"drink:cocktail", b"served") {
+            Some(LandmarkType::CocktailBar)
+        } else if Self::has_kv_pair(tags, b"emergency", b"emergency_ward_entrance")
+            || Self::has_kv_pair(tags, b"healthcare", b"emergency_ward") {
+            Some(LandmarkType::Hospital)
+        } else if Self::has_kv_pair(tags, b"natural", b"tree") {
+            Some(LandmarkType::Tree)
+        } else if Self::has_kv_pair(tags, b"anemity", b"place_of_worship") {
+            if Self::has_kv_pair(tags, b"religion", b"aetherius_society") {
+                Some(LandmarkType::TempleAetheriusSociety)
+            } else if Self::has_kv_pair(tags, b"religion", b"buddhist") {
+                Some(LandmarkType::TempleBuddhist)
+            } else if Self::has_kv_pair(tags, b"religion", b"christian") || Self::has_kv_pair(tags, b"religion", b"spiritualist") {
+                Some(LandmarkType::TempleChristian)
+            } else if Self::has_kv_pair(tags, b"religion", b"hindu") {
+                Some(LandmarkType::TempleHindu)
+            } else if Self::has_kv_pair(tags, b"religion", b"humanist") {
+                Some(LandmarkType::TempleHumanist)
+            } else if Self::has_kv_pair(tags, b"religion", b"jain") {
+                Some(LandmarkType::TempleJain)
+            } else if Self::has_kv_pair(tags, b"religion", b"jewish") {
+                Some(LandmarkType::TempleJewish)
+            } else if Self::has_kv_pair(tags, b"religion", b"muslim") {
+                Some(LandmarkType::TempleMuslim)
+            } else if Self::has_kv_pair(tags, b"religion", b"rastafarian") {
+                Some(LandmarkType::TempleRastafarian)
+            } else if Self::has_kv_pair(tags, b"religion", b"rosicrucian") {
+                Some(LandmarkType::TempleRosicucian)
+            } else if Self::has_kv_pair(tags, b"religion", b"scientologist") {
+                Some(LandmarkType::TempleScientologist)
+            } else if Self::has_kv_pair(tags, b"religion", b"self-realization_fellowship") {
+                Some(LandmarkType::TempleSelfRealizationFellowship)
+            } else if Self::has_kv_pair(tags, b"religion", b"sikh") {
+                Some(LandmarkType::TempleSikh)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     fn process_nodes(&mut self, output: &mut SemanticMapElements, nodes: &HashMap<OsmId, Node>) {
         for node in nodes.values() {
             if Self::has_kv_pair(&node.tags, b"railway", b"station")
@@ -101,25 +152,7 @@ impl SemanticMapEtl {
                     );
                 }
             }
-            let maybe_landmark_type = if Self::has_kv_pair(&node.tags, b"lgbtq:men", b"only")
-                || Self::has_kv_pair(&node.tags, b"lgbtq:men", b"primary")
-                || Self::has_kv_pair(&node.tags, b"gay", b"yes") {
-                    Some(LandmarkType::LgbtqMen)
-            } else if Self::has_kv_pair(&node.tags, b"lgbtq", b"primary") {
-                Some(LandmarkType::Lgbtq)
-            } else if Self::has_kv_pair(&node.tags, b"bar", b"cocktail")
-                || Self::has_kv_pair(&node.tags, b"cocktails", b"yes")
-                || Self::has_kv_pair(&node.tags, b"drink:cocktail", b"served") {
-                Some(LandmarkType::CocktailBar)
-            } else if Self::has_kv_pair(&node.tags, b"emergency", b"emergency_ward_entrance")
-                || Self::has_kv_pair(&node.tags, b"healthcare", b"emergency_ward") {
-                Some(LandmarkType::Hospital)
-            } else if Self::has_kv_pair(&node.tags, b"natural", b"tree") {
-                Some(LandmarkType::Tree)
-            } else {
-                None
-            };
-            if let Some(landmark_type) = maybe_landmark_type {
+            if let Some(landmark_type) = self.landmark_type_from_tags(&node.tags) {
                 output.landmarks.push(
                     Landmark{
                         lon: node.lon,
@@ -189,6 +222,17 @@ impl SemanticMapEtl {
                 }
             } else if Self::has_kv_pair(&way.tags, b"railway", b"rail") {
                 output.rails.push(way.into());
+            }
+
+            if let Some(landmark_type) = self.landmark_type_from_tags(&way.tags) {
+                eprintln!("Pushing landmark id {}", way.id);
+                output.landmarks.push(
+                    Landmark{
+                        lon: way.nodes[0].lon,
+                        lat: way.nodes[0].lat,
+                        landmark_type,
+                    }
+                );
             }
         }
     }

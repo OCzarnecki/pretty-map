@@ -1,7 +1,7 @@
 use core::f64;
 use std::{cmp::Ordering, fs::{self, File}, io::Read, path::{Path, PathBuf}};
 
-use png::{self, BitDepth};
+use png::{self, BitDepth, ColorType};
 use raqote::{BlendMode, DrawOptions, DrawTarget, Image, LineCap, LineJoin, PathBuilder, Point, SolidSource, Source, StrokeStyle};
 use serde::Deserialize;
 
@@ -33,10 +33,67 @@ pub struct OwnedImage {
     pub data: Vec<u32>,
 }
 
+pub fn draw_image_raw(dt: &mut DrawTarget, img: &OwnedImage, x: i32, y: i32) {
+    let buffer_width = dt.width();
+    let buffer_height = dt.height();
+    let buffer = dt.get_data_u8_mut();
+
+    for current_img_x in 0..img.width {
+        for current_img_y in 0..img.height {
+            let buffer_x = current_img_x + x;
+            let buffer_y = current_img_y + y;
+            if buffer_x >= buffer_width {
+                continue;
+            }
+            if buffer_y >= buffer_height {
+                continue;
+            }
+            let idx_buffer = (
+                buffer_y as usize
+                * buffer_width as usize
+                + buffer_x as usize
+            ) * 4;
+            println!("{} {} {} {}", idx_buffer, buffer_y, buffer_width, buffer_x);
+            let idx_img = current_img_y as usize * img.width as usize + current_img_x as usize;
+
+            let new_r = img.data[idx_img] & 0x000000FF;
+            let new_g = (img.data[idx_img] & 0x0000FF00) >> 8;
+            let new_b = (img.data[idx_img] & 0x00FF0000) >> 16;
+            let new_a = (img.data[idx_img] & 0xFF000000) >> 24;
+
+            let old_r = buffer[idx_buffer] as u32;
+            let old_g = buffer[idx_buffer + 1] as u32;
+            let old_b = buffer[idx_buffer + 2] as u32;
+
+            println!(
+                "{} {} {} {} {} {} {}",
+                new_r,
+                new_g,
+                new_b,
+                new_a,
+                old_r,
+                old_g,
+                old_b,
+            );
+
+            //buffer[idx_buffer] = ((new_r * new_a + old_r * (255 - new_a)) / 255) as u8;
+            //buffer[idx_buffer + 1] = ((new_g * new_a + old_g * (255 - new_a)) / 255) as u8;
+            //buffer[idx_buffer + 2] = ((new_b * new_a + old_b * (255 - new_a)) / 255) as u8;
+            //buffer[idx_buffer + 3] = 0xFF;
+        }
+    }
+}
+
 use serialize_color::deserialize;
 
 #[derive(Deserialize)]
 pub struct Theme<'a> {
+    #[serde(deserialize_with = "deserialize")]
+    pub background_color: Source<'a>,
+
+    #[serde(deserialize_with = "deserialize")]
+    pub park_color: Source<'a>,
+
     #[serde(deserialize_with = "deserialize")]
     pub road_color: Source<'a>,
 
@@ -48,9 +105,6 @@ pub struct Theme<'a> {
 
     #[serde(deserialize_with = "deserialize")]
     pub water_color: Source<'a>,
-
-    #[serde(deserialize_with = "deserialize")]
-    pub park_color: Source<'a>,
 }
 
 mod serialize_color {
@@ -102,6 +156,19 @@ pub struct DrawMapEtl <'a> {
     elizabeth_line_logo: OwnedImage,
     lgbtq_logo: OwnedImage,
     cocktail_logo: OwnedImage,
+    temple_aetherius_society_logo: OwnedImage,
+    temple_buddhist_logo: OwnedImage,
+    temple_christian_logo: OwnedImage,
+    temple_hindu_logo: OwnedImage,
+    temple_humanist_logo: OwnedImage,
+    temple_jain_logo: OwnedImage,
+    temple_jewish_logo: OwnedImage,
+    temple_muslim_logo: OwnedImage,
+    temple_rastafarian_logo: OwnedImage,
+    temple_rosicrucian_logo: OwnedImage,
+    temple_scientologist_logo: OwnedImage,
+    temple_self_realization_fellowship_logo: OwnedImage,
+    temple_sikh_logo: OwnedImage,
     font: fk::Font,
     theme: &'a Theme<'a>,
 }
@@ -302,13 +369,19 @@ impl DrawMapEtl<'_> {
         draw_options.blend_mode = BlendMode::SrcOver;
 
         // dt.draw_image_at(
-        dt.draw_image_with_size_at(
-            width,
-            height,
-            x_center - width / 2.0,
-            y_center - height / 2.0,
-            &img,
-            &draw_options,
+        // dt.draw_image_with_size_at(
+        //     width,
+        //     height,
+        //     x_center - width / 2.0,
+        //     y_center - height / 2.0,
+        //     &img,
+        //     &draw_options,
+        // );
+        draw_image_raw(
+            dt,
+            logo,
+            (x_center - width  / 2.0) as i32,
+            (y_center - height / 2.0) as i32,
         );
 
         self.draw_text(dt, x_center, y_center + height / 2.0 + 15.0, 20.0, &station.name);
@@ -330,7 +403,44 @@ impl DrawMapEtl<'_> {
             cocktail_logo: Self::load_image("cocktail").unwrap(),
             font,
             theme: &user_config.theme,
+            temple_aetherius_society_logo: Self::load_image("aetherius_society").unwrap(),
+            temple_buddhist_logo: Self::load_image("buddhist-stupa").unwrap(),
+            temple_christian_logo: Self::load_image("crucifix").unwrap(),
+            temple_hindu_logo: Self::load_image("hindu-om").unwrap(),
+            temple_humanist_logo: Self::load_image("humanism").unwrap(),
+            temple_jain_logo: Self::load_image("janism").unwrap(),
+            temple_jewish_logo: Self::load_image("judaism").unwrap(),
+            temple_muslim_logo: Self::load_image("islam").unwrap(),
+            temple_rastafarian_logo: Self::load_image("rastafarianism").unwrap(),
+            temple_rosicrucian_logo: Self::load_image("rosicrucianism").unwrap(),
+            temple_scientologist_logo: Self::load_image("scientology").unwrap(),
+            temple_self_realization_fellowship_logo: Self::load_image("self-realization-fellowship").unwrap(),
+            temple_sikh_logo: Self::load_image("sikh").unwrap(),
         }
+        //DrawMapEtl {
+        //    user_config,
+        //    underground_logo: Self::load_image("lgbtq").unwrap(),
+        //    overground_logo: Self::load_image("lgbtq").unwrap(),
+        //    elizabeth_line_logo: Self::load_image("lgbtq").unwrap(),
+        //    dlr_logo: Self::load_image("lgbtq").unwrap(),
+        //    lgbtq_logo: Self::load_image("lgbtq").unwrap(),
+        //    cocktail_logo: Self::load_image("lgbtq").unwrap(),
+        //    font,
+        //    theme: &user_config.theme,
+        //    temple_aetherius_society_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_buddhist_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_christian_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_hindu_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_humanist_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_jain_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_jewish_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_muslim_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_rastafarian_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_rosicrucian_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_scientologist_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_self_realization_fellowship_logo: Self::load_image("lgbtq").unwrap(),
+        //    temple_sikh_logo: Self::load_image("lgbtq").unwrap(),
+        //}
     }
 
     fn extract_semantic_map_elements(&self, dir: &Path) -> Result<SemanticMapElements> {
@@ -354,7 +464,6 @@ impl DrawMapEtl<'_> {
         let mut reader = decoder.read_info()?;
 
         let mut buf = vec![0; reader.output_buffer_size()];
-        let mut buf_u32 = vec![0_u32; reader.output_buffer_size() / 4];
 
         let info = reader.next_frame(&mut buf)?;
 
@@ -362,20 +471,43 @@ impl DrawMapEtl<'_> {
             return Err("Unsupported bit depth".into())
         }
 
-        for (idx_u32, ptr_u32) in buf_u32.iter_mut().enumerate() {
-            let idx_u8 = 4 * idx_u32;
-            let b = buf[idx_u8] as u32;
-            let g = buf[idx_u8 + 1] as u32;
-            let r = buf[idx_u8 + 2] as u32;
-            let a = buf[idx_u8 + 3] as u32;
+        let buf_u32 = match info.color_type {
+            ColorType::Rgba => {
+                let mut buf_u32 = vec![0_u32; reader.output_buffer_size() / 4];
+                for (idx_u32, ptr_u32) in buf_u32.iter_mut().enumerate() {
+                    let idx_u8 = 4 * idx_u32;
+                    let b = buf[idx_u8] as u32;
+                    let g = buf[idx_u8 + 1] as u32;
+                    let r = buf[idx_u8 + 2] as u32;
+                    let a = buf[idx_u8 + 3] as u32;
 
-            *ptr_u32 =
-                r
-                + (g << 8)
-                + (b << 16)
-                + (a << 24)
-            ;
-        }
+                    *ptr_u32 =
+                        r
+                        + (g << 8)
+                        + (b << 16)
+                        + (a << 24)
+                    ;
+                }
+                buf_u32
+            },
+            ColorType::GrayscaleAlpha => {
+                let mut buf_u32 = vec![0_u32; reader.output_buffer_size() / 2];
+                for (idx_u32, ptr_u32) in buf_u32.iter_mut().enumerate() {
+                    let idx_u8 = 2 * idx_u32;
+                    let g = buf[idx_u8] as u32;
+                    let a = buf[idx_u8 + 1] as u32;
+
+                    *ptr_u32 =
+                        g
+                        + (g << 8)
+                        + (g << 16)
+                        + (a << 24)
+                    ;
+                }
+                buf_u32
+            },
+            _ => todo!(),
+        };
 
         Ok(OwnedImage {
             width: info.width.try_into()?,
@@ -420,14 +552,33 @@ impl DrawMapEtl<'_> {
         if let semantic::LandmarkType::Tree = landmark.landmark_type {
             return
         }
+        if let semantic::LandmarkType::Hospital = landmark.landmark_type {
+            return
+        }
+        if let semantic::LandmarkType::TubeEmergencyExit = landmark.landmark_type {
+            return
+        }
 
         let logo = match landmark.landmark_type {
             semantic::LandmarkType::LgbtqMen => &self.lgbtq_logo,
             semantic::LandmarkType::Lgbtq => &self.lgbtq_logo,
             semantic::LandmarkType::CocktailBar => &self.cocktail_logo,
-            semantic::LandmarkType::Hospital => &self.cocktail_logo,
-            //semantic::LandmarkType::Tree => &self.cocktail_logo,
-            _ => todo!(),
+            semantic::LandmarkType::TempleAetheriusSociety => &self.temple_aetherius_society_logo,
+            semantic::LandmarkType::TempleBuddhist => &self.temple_buddhist_logo,
+            semantic::LandmarkType::TempleChristian => &self.temple_christian_logo,
+            semantic::LandmarkType::TempleHindu => &self.temple_hindu_logo,
+            semantic::LandmarkType::TempleHumanist => &self.temple_humanist_logo,
+            semantic::LandmarkType::TempleJain => &self.temple_jain_logo,
+            semantic::LandmarkType::TempleJewish => &self.temple_jewish_logo,
+            semantic::LandmarkType::TempleMuslim => &self.temple_muslim_logo,
+            semantic::LandmarkType::TempleRastafarian => &self.temple_rastafarian_logo,
+            semantic::LandmarkType::TempleRosicucian => &self.temple_rosicrucian_logo,
+            semantic::LandmarkType::TempleScientologist => &self.temple_scientologist_logo,
+            semantic::LandmarkType::TempleSelfRealizationFellowship => &self.temple_self_realization_fellowship_logo,
+            semantic::LandmarkType::TempleSikh => &self.temple_sikh_logo,
+            semantic::LandmarkType::Hospital => todo!(),
+            semantic::LandmarkType::Tree => todo!(),
+            semantic::LandmarkType::TubeEmergencyExit => todo!(),
         };
 
         let img = Image {
@@ -479,9 +630,11 @@ impl Etl for DrawMapEtl<'_> {
             self.user_config.height_px.try_into()?
         );
 
-        dt.clear(SolidSource::from_unpremultiplied_argb(
-            0xff, 0xff, 0xff, 0xff,
-        ));
+        if let Source::Solid(s) = self.theme.background_color {
+            dt.clear(s);
+        } else {
+            panic!("All colours are solid sources!");
+        }
 
         for area in input.areas {
             self.draw_area(&mut dt, &area);

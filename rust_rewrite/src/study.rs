@@ -1,6 +1,12 @@
-use std::usize;
+use std::{fs::File, usize};
 
+use png::{BitDepth, ColorType};
 use raqote::*;
+use sw_composite::*;
+
+use crate::{
+    errors::Result,
+};
 
 mod fk {
     pub use font_kit::canvas::{Canvas, Format, RasterizationOptions};
@@ -98,4 +104,134 @@ pub fn run() {
     dt.write_png("test.png").expect("Could not write test.png");
 }
 
+pub struct OwnedImage {
+    pub width: i32,
+    pub height: i32,
+    pub data: Vec<u32>,
+}
 
+pub fn draw_image_raw(dt: &mut DrawTarget, img: &OwnedImage, x: i32, y: i32) {
+    let buffer_width = dt.width();
+    let buffer_height = dt.height();
+    let buffer = dt.get_data_u8_mut();
+
+    for current_img_x in 0..img.width {
+        for current_img_y in 0..img.height {
+            let buffer_x = current_img_x + x;
+            let buffer_y = current_img_y + y;
+            if buffer_x >= buffer_width {
+                continue;
+            }
+            if buffer_y >= buffer_height {
+                continue;
+            }
+            let idx_buffer = buffer_y * buffer_width + buffer_x;
+            let idx_img = current_img_y * img.width + current_img_x;
+
+            let new_r = img.data[idx_img as usize] & 0x000000FF;
+            let new_g = img.data[idx_img as usize] & 0x000000FF;
+            let new_b = img.data[idx_img as usize] & 0x000000FF;
+            let new_a = img.data[idx_img as usize] & 0x000000FF;
+
+            let old_r = buffer[4 * idx_buffer as usize] as u32;
+            let old_g = buffer[4 * idx_buffer as usize + 1] as u32;
+            let old_b = buffer[4 * idx_buffer as usize + 2] as u32;
+            let old_a = buffer[4 * idx_buffer as usize + 3] as u32;
+
+            buffer[4 * idx_buffer as usize] = ((new_r * new_a + old_r * (255 - new_a)) / 255) as u8;
+            buffer[4 * idx_buffer as usize + 1] = ((new_g * new_a + old_g * (255 - new_a)) / 255) as u8;
+            buffer[4 * idx_buffer as usize + 2] = ((new_b * new_a + old_b * (255 - new_a)) / 255) as u8;
+            buffer[4 * idx_buffer as usize + 3] = 0xFF;
+        }
+    }
+}
+
+
+fn load_image(name: &str) -> Result<OwnedImage> {
+    let decoder = png::Decoder::new(
+        File::open(format!("resources/images/{}.png", name))?
+    );
+
+    let mut reader = decoder.read_info()?;
+
+    let mut buf = vec![0; reader.output_buffer_size()];
+
+    let info = reader.next_frame(&mut buf)?;
+
+    if info.bit_depth != BitDepth::Eight {
+        return Err("Unsupported bit depth".into())
+    }
+
+    let buf_u32 = match info.color_type {
+        png::ColorType::Rgba => {
+            let mut buf_u32 = vec![0_u32; reader.output_buffer_size() / 4];
+            for (idx_u32, ptr_u32) in buf_u32.iter_mut().enumerate() {
+                let idx_u8 = 4 * idx_u32;
+                let b = buf[idx_u8] as u32;
+                let g = buf[idx_u8 + 1] as u32;
+                let r = buf[idx_u8 + 2] as u32;
+                let a = buf[idx_u8 + 3] as u32;
+
+                *ptr_u32 =
+                    r
+                    + (g << 8)
+                    + (b << 16)
+                    + (a << 24)
+                ;
+            }
+            buf_u32
+        },
+        ColorType::GrayscaleAlpha => {
+            let mut buf_u32 = vec![0_u32; reader.output_buffer_size() / 2];
+            for (idx_u32, ptr_u32) in buf_u32.iter_mut().enumerate() {
+                let idx_u8 = 2 * idx_u32;
+                let g = buf[idx_u8] as u32;
+                let a = buf[idx_u8 + 1] as u32;
+
+                *ptr_u32 =
+                    g
+                    + (g << 8)
+                    + (g << 16)
+                    + (a << 24)
+                ;
+            }
+            buf_u32
+        },
+        _ => todo!(),
+    };
+
+    Ok(OwnedImage {
+        width: info.width.try_into()?,
+        height: info.height.try_into()?,
+        data: buf_u32,
+    })
+}
+
+pub fn big_image() {
+    let width = 23622;
+    let height = 17717;
+
+    let mut dt = DrawTarget::new(width, height);
+    dt.clear(SolidSource::from_unpremultiplied_argb(255, 255, 0, 0));
+
+    let image = load_image("crucifix-out").expect("God is dead.");
+
+    let mut draw_options = DrawOptions::new();
+    draw_options.blend_mode = BlendMode::Overlay;
+
+    let img = Image {
+        width: image.width,
+        height: image.height,
+        data: &image.data,
+    };
+
+    let step_size = 300;
+    for x in tqdm::tqdm((0..width).step_by(step_size)) {
+        for y in (0..height).step_by(step_size) {
+            // dt.draw_image_at(x as f32, y as f32, &img, &draw_options);
+            draw_image_raw(&mut dt, &image, x, y);
+        }
+    }
+
+    dt.write_png("study_out.png").expect("Couldn't write.");
+}

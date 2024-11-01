@@ -55,10 +55,13 @@ fn setup_logging() {
 }
 
 fn main() -> Result<()> {
+    //crate::study::big_image();
+    //return Ok(());
+
     setup_logging();
 
-    //let user_config = load_user_config("../config/london_full.json");
-    let user_config = load_user_config("../config/london_center.json");
+    let user_config = load_user_config("../config/london_full.json");
+    // let user_config = load_user_config("../config/london_center.json");
     let output_dir = create_output_dir(&user_config)?;
 
     // Limit ETL Scope so that memory can be freed as early as possible

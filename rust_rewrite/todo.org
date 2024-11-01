@@ -4,13 +4,13 @@
 
 * DONE Draw parks, woods, bodies of water
 
-* DONE Draw tube stations
+* TODO Draw tube stations
   - [x] Draw the images
   - [x] Draw the names
 
 * TODO Combine tube stations with the same name
 
-* TODO Draw tube lines in the right colours
+* DONE Draw tube lines in the right colours
 
 * TODO Draw Boroughs
 
@@ -19,8 +19,12 @@
 * TODO Try drawing tiny icons for churches
  - [p] hospitals
  - [p] trees
+ - [ ] temples of different faiths
  - [ ] tube station emergency exits
  - [x] queer venues
- - [ ] cocktail bars
+ - [x] cocktail bars
+ - [ ] bouldering spots (incl. outdoor ones)
+ - [ ] 28 days later
+ - [ ] parcour spots
 
 * DONE Put all colors into the config

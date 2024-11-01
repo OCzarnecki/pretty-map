@@ -190,6 +190,19 @@ pub enum LandmarkType {
     Hospital,
     Tree,
     TubeEmergencyExit,
+    TempleAetheriusSociety,
+    TempleBuddhist,
+    TempleChristian,
+    TempleHindu,
+    TempleHumanist,
+    TempleJain,
+    TempleJewish,
+    TempleMuslim,
+    TempleRastafarian,
+    TempleRosicucian,
+    TempleScientologist,
+    TempleSelfRealizationFellowship,
+    TempleSikh,
 }
 
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
