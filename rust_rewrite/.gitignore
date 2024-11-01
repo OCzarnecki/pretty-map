@@ -3,3 +3,4 @@ callgrind.out.*
 perf.data*
 vgcore*
 test.png
+.gdb_history
