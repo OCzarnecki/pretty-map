@@ -169,6 +169,8 @@ pub struct DrawMapEtl <'a> {
     temple_scientologist_logo: OwnedImage,
     temple_self_realization_fellowship_logo: OwnedImage,
     temple_sikh_logo: OwnedImage,
+    x_shift: f32,
+    y_shift: f32,
     font: fk::Font,
     theme: &'a Theme<'a>,
 }
@@ -184,7 +186,7 @@ impl DrawMapEtl<'_> {
 
         let x = rel_lon * self.user_config.px_per_deg_lon;
         let y = - rel_lat * self.user_config.px_per_deg_lat;
-        (x as f32, y as f32)
+        (x as f32 - self.x_shift, y as f32 - self.y_shift)
     }
 
     fn stroke(width: f32) -> StrokeStyle {
@@ -415,6 +417,8 @@ impl DrawMapEtl<'_> {
             temple_scientologist_logo: Self::load_image("scientology").unwrap(),
             temple_self_realization_fellowship_logo: Self::load_image("self-realization-fellowship").unwrap(),
             temple_sikh_logo: Self::load_image("sikh").unwrap(),
+            x_shift: 0.0,
+            y_shift: 0.0,
         }
         //DrawMapEtl {
         //    user_config,
@@ -604,7 +608,7 @@ impl DrawMapEtl<'_> {
 impl Etl for DrawMapEtl<'_> {
     type Input = SemanticMapElements;
 
-    type Output = DrawTarget;
+    type Output = Vec<Vec<DrawTarget>>;
 
     fn etl_name(&self) -> &str {
         ETL_NAME
@@ -624,55 +628,74 @@ impl Etl for DrawMapEtl<'_> {
     }
 
     fn transform(&mut self, input: Self::Input) -> Result<Self::Output> {
-        let mut dt = DrawTarget::new(
-            self.user_config.width_px.try_into()?,
-            self.user_config.height_px.try_into()?
-        );
+        let mut dts = Vec::new();
+        let cell_size = 4096;
+        for cell_x in (0..self.user_config.width_px).step_by(cell_size) {
+            let mut dt_col = Vec::new();
+            for cell_y in (0..self.user_config.height_px).step_by(cell_size) {
+                let cell_width = cell_size.min((self.user_config.width_px - cell_x).try_into()?);
+                let cell_height = cell_size.min((self.user_config.height_px - cell_y).try_into()?);
+                let mut dt = DrawTarget::new(
+                    cell_width.try_into()?,
+                    cell_height.try_into()?,
+                );
+                self.x_shift = cell_x as f32;
+                self.y_shift = cell_y as f32;
 
-        if let Source::Solid(s) = self.theme.background_color {
-            dt.clear(s);
-        } else {
-            panic!("All colours are solid sources!");
-        }
-
-        for area in input.areas {
-            self.draw_area(&mut dt, &area);
-        }
-        for road in input.roads {
-            self.draw_semantic_path(&mut dt, &road, &PathStyle::Road);
-        }
-        for rail in input.rails {
-            self.draw_semantic_path(&mut dt, &rail, &PathStyle::Rail);
-        }
-
-        let mut sorted_rails = input.tube_rails.clone();
-        sorted_rails.sort_by(
-            |rail_a, rail_b| {
-                if rail_a.line < rail_b.line {
-                    Ordering::Less
-                } else if rail_a.line == rail_b.line {
-                    Ordering::Equal
+                if let Source::Solid(s) = self.theme.background_color {
+                    dt.clear(s);
                 } else {
-                    Ordering::Greater
+                    panic!("All colours are solid sources!");
                 }
-            }
-        );
 
-        for rail in sorted_rails {
-            self.draw_tube_rail(&mut dt, &rail);
+                for area in &input.areas {
+                    self.draw_area(&mut dt, &area);
+                }
+                for road in &input.roads {
+                    self.draw_semantic_path(&mut dt, &road, &PathStyle::Road);
+                }
+                for rail in &input.rails {
+                    self.draw_semantic_path(&mut dt, &rail, &PathStyle::Rail);
+                }
+
+                let mut sorted_rails = input.tube_rails.clone();
+                sorted_rails.sort_by(
+                    |rail_a, rail_b| {
+                        if rail_a.line < rail_b.line {
+                            Ordering::Less
+                        } else if rail_a.line == rail_b.line {
+                            Ordering::Equal
+                        } else {
+                            Ordering::Greater
+                        }
+                    }
+                );
+
+                for rail in sorted_rails {
+                    self.draw_tube_rail(&mut dt, &rail);
+                }
+                for station in &input.underground_stations {
+                    self.draw_undergound_station(&mut dt, &station);
+                }
+                for landmark in &input.landmarks {
+                    self.draw_landmark(&mut dt, &landmark);
+                }
+                dt_col.push(dt);
+            }
+            dts.push(dt_col);
         }
-        for station in input.underground_stations {
-            self.draw_undergound_station(&mut dt, &station);
-        }
-        for landmark in input.landmarks {
-            self.draw_landmark(&mut dt, &landmark);
-        }
-        Ok(dt)
+        Ok(dts)
     }
 
     fn load(&mut self, dir: &Path, output: Self::Output) -> Result<()> {
-        output.write_png(
-            Self::output_path(dir)
-        ).map_err(|_| "Couldn't write png. (encoding error)".into())
+        for (x, column) in output.iter().enumerate() {
+            for (y, dt) in column.iter().enumerate() {
+                let filename = format!("output_x{}_y{}.png", x, y);
+                let output_path = dir.join(&filename);
+                dt.write_png(&output_path)
+                    .map_err(|e| format!("Couldn't write png for x={}, y={}: {}", x, y, e))?;
+            }
+        }
+        Ok(())
     }
 }
