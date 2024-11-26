@@ -89,7 +89,7 @@ impl SemanticMapEtl {
         } else if Self::has_kv_pair(tags, b"amenity", b"music_venue")
             || Self::has_kv_pair(tags, b"live_music", b"yes") {
             Some(LandmarkType::MusicVenue)
-        } else if Self::has_kv_pair(tags, b"anemity", b"place_of_worship") {
+        } else if Self::has_kv_pair(tags, b"amenity", b"place_of_worship") {
             if Self::has_kv_pair(tags, b"religion", b"aetherius_society") {
                 Some(LandmarkType::TempleAetheriusSociety)
             } else if Self::has_kv_pair(tags, b"religion", b"buddhist") {
