@@ -17,14 +17,16 @@
 * TODO Try drawing buildings in a very fine stroke
 
 * TODO Try drawing tiny icons for churches
- - [p] hospitals
+ - [x] hospitals
  - [p] trees
- - [ ] temples of different faiths
+ - [x] temples of different faiths
  - [ ] tube station emergency exits
  - [x] queer venues
  - [x] cocktail bars
  - [ ] bouldering spots (incl. outdoor ones)
+ - [x] gyms (leisure:fitness_centre, leisure:sports_centre)
  - [ ] 28 days later
  - [ ] parcour spots
+ - [x] leisure:music_venue
 
 * DONE Put all colors into the config

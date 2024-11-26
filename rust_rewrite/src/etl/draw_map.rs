@@ -33,57 +33,6 @@ pub struct OwnedImage {
     pub data: Vec<u32>,
 }
 
-pub fn draw_image_raw(dt: &mut DrawTarget, img: &OwnedImage, x: i32, y: i32) {
-    let buffer_width = dt.width();
-    let buffer_height = dt.height();
-    let buffer = dt.get_data_u8_mut();
-
-    for current_img_x in 0..img.width {
-        for current_img_y in 0..img.height {
-            let buffer_x = current_img_x + x;
-            let buffer_y = current_img_y + y;
-            if buffer_x >= buffer_width {
-                continue;
-            }
-            if buffer_y >= buffer_height {
-                continue;
-            }
-            let idx_buffer = (
-                buffer_y as usize
-                * buffer_width as usize
-                + buffer_x as usize
-            ) * 4;
-            println!("{} {} {} {}", idx_buffer, buffer_y, buffer_width, buffer_x);
-            let idx_img = current_img_y as usize * img.width as usize + current_img_x as usize;
-
-            let new_r = img.data[idx_img] & 0x000000FF;
-            let new_g = (img.data[idx_img] & 0x0000FF00) >> 8;
-            let new_b = (img.data[idx_img] & 0x00FF0000) >> 16;
-            let new_a = (img.data[idx_img] & 0xFF000000) >> 24;
-
-            let old_r = buffer[idx_buffer] as u32;
-            let old_g = buffer[idx_buffer + 1] as u32;
-            let old_b = buffer[idx_buffer + 2] as u32;
-
-            println!(
-                "{} {} {} {} {} {} {}",
-                new_r,
-                new_g,
-                new_b,
-                new_a,
-                old_r,
-                old_g,
-                old_b,
-            );
-
-            //buffer[idx_buffer] = ((new_r * new_a + old_r * (255 - new_a)) / 255) as u8;
-            //buffer[idx_buffer + 1] = ((new_g * new_a + old_g * (255 - new_a)) / 255) as u8;
-            //buffer[idx_buffer + 2] = ((new_b * new_a + old_b * (255 - new_a)) / 255) as u8;
-            //buffer[idx_buffer + 3] = 0xFF;
-        }
-    }
-}
-
 use serialize_color::deserialize;
 
 #[derive(Deserialize)]
@@ -156,6 +105,9 @@ pub struct DrawMapEtl <'a> {
     elizabeth_line_logo: OwnedImage,
     lgbtq_logo: OwnedImage,
     cocktail_logo: OwnedImage,
+    gym_logo: OwnedImage,
+    hospital_logo: OwnedImage,
+    music_logo: OwnedImage,
     temple_aetherius_society_logo: OwnedImage,
     temple_buddhist_logo: OwnedImage,
     temple_christian_logo: OwnedImage,
@@ -378,12 +330,6 @@ impl DrawMapEtl<'_> {
             &img,
             &draw_options,
         );
-        // draw_image_raw(
-        //     dt,
-        //     logo,
-        //     (x_center - width  / 2.0) as i32,
-        //     (y_center - height / 2.0) as i32,
-        // );
 
         self.draw_text(dt, x_center, y_center + height / 2.0 + 15.0, 20.0, &station.name);
         // dt.draw_image_at(x_center, y_center, &img, &DrawOptions::new());
@@ -400,8 +346,11 @@ impl DrawMapEtl<'_> {
             overground_logo: Self::load_image("overground").unwrap(),
             elizabeth_line_logo: Self::load_image("elizabeth").unwrap(),
             dlr_logo: Self::load_image("dlr").unwrap(),
+            gym_logo: Self::load_image("gym").unwrap(),
             lgbtq_logo: Self::load_image("lgbtq").unwrap(),
             cocktail_logo: Self::load_image("cocktail").unwrap(),
+            hospital_logo: Self::load_image("hospital").unwrap(),
+            music_logo: Self::load_image("music_venue").unwrap(),
             font,
             theme: &user_config.theme,
             temple_aetherius_society_logo: Self::load_image("aetherius_society").unwrap(),
@@ -549,13 +498,10 @@ impl DrawMapEtl<'_> {
 
     fn draw_landmark(&self, dt: &mut DrawTarget, landmark: &Landmark) {
         let (x_center, y_center) = self.project_mercantor(&landmark.into());
-        let width = 32.0;
-        let height = 32.0;
+        let width = 58.0;
+        let height = 48.0;
 
         if let semantic::LandmarkType::Tree = landmark.landmark_type {
-            return
-        }
-        if let semantic::LandmarkType::Hospital = landmark.landmark_type {
             return
         }
         if let semantic::LandmarkType::TubeEmergencyExit = landmark.landmark_type {
@@ -566,6 +512,9 @@ impl DrawMapEtl<'_> {
             semantic::LandmarkType::LgbtqMen => &self.lgbtq_logo,
             semantic::LandmarkType::Lgbtq => &self.lgbtq_logo,
             semantic::LandmarkType::CocktailBar => &self.cocktail_logo,
+            semantic::LandmarkType::Gym => &self.gym_logo,
+            semantic::LandmarkType::Hospital => &self.hospital_logo,
+            semantic::LandmarkType::MusicVenue => &self.music_logo,
             semantic::LandmarkType::TempleAetheriusSociety => &self.temple_aetherius_society_logo,
             semantic::LandmarkType::TempleBuddhist => &self.temple_buddhist_logo,
             semantic::LandmarkType::TempleChristian => &self.temple_christian_logo,
@@ -579,7 +528,6 @@ impl DrawMapEtl<'_> {
             semantic::LandmarkType::TempleScientologist => &self.temple_scientologist_logo,
             semantic::LandmarkType::TempleSelfRealizationFellowship => &self.temple_self_realization_fellowship_logo,
             semantic::LandmarkType::TempleSikh => &self.temple_sikh_logo,
-            semantic::LandmarkType::Hospital => todo!(),
             semantic::LandmarkType::Tree => todo!(),
             semantic::LandmarkType::TubeEmergencyExit => todo!(),
         };
@@ -629,7 +577,7 @@ impl Etl for DrawMapEtl<'_> {
 
     fn transform(&mut self, input: Self::Input) -> Result<Self::Output> {
         let mut dts = Vec::new();
-        let cell_size = 4096;
+        let cell_size = 4096 * 2;
         for cell_x in (0..self.user_config.width_px).step_by(cell_size) {
             let mut dt_col = Vec::new();
             for cell_y in (0..self.user_config.height_px).step_by(cell_size) {

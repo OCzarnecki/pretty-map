@@ -83,6 +83,12 @@ impl SemanticMapEtl {
             Some(LandmarkType::Hospital)
         } else if Self::has_kv_pair(tags, b"natural", b"tree") {
             Some(LandmarkType::Tree)
+        } else if Self::has_kv_pair(tags, b"leisure", b"fitness_centre")
+            /*|| Self::has_kv_pair(tags, b"leisure", b"sports_centre")*/ {
+            Some(LandmarkType::Gym)
+        } else if Self::has_kv_pair(tags, b"amenity", b"music_venue")
+            || Self::has_kv_pair(tags, b"live_music", b"yes") {
+            Some(LandmarkType::MusicVenue)
         } else if Self::has_kv_pair(tags, b"anemity", b"place_of_worship") {
             if Self::has_kv_pair(tags, b"religion", b"aetherius_society") {
                 Some(LandmarkType::TempleAetheriusSociety)
@@ -225,7 +231,6 @@ impl SemanticMapEtl {
             }
 
             if let Some(landmark_type) = self.landmark_type_from_tags(&way.tags) {
-                eprintln!("Pushing landmark id {}", way.id);
                 output.landmarks.push(
                     Landmark{
                         lon: way.nodes[0].lon,
