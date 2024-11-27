@@ -105,6 +105,9 @@ pub struct DrawMapEtl <'a> {
     elizabeth_line_logo: OwnedImage,
     lgbtq_logo: OwnedImage,
     cocktail_logo: OwnedImage,
+    climbing_boulder_logo: OwnedImage,
+    climbing_rope_logo: OwnedImage,
+    climbing_outdoor_logo: OwnedImage,
     gym_logo: OwnedImage,
     hospital_logo: OwnedImage,
     music_logo: OwnedImage,
@@ -121,6 +124,7 @@ pub struct DrawMapEtl <'a> {
     temple_scientologist_logo: OwnedImage,
     temple_self_realization_fellowship_logo: OwnedImage,
     temple_sikh_logo: OwnedImage,
+    tree_logo: OwnedImage,
     x_shift: f32,
     y_shift: f32,
     font: fk::Font,
@@ -349,6 +353,9 @@ impl DrawMapEtl<'_> {
             gym_logo: Self::load_image("gym").unwrap(),
             lgbtq_logo: Self::load_image("lgbtq").unwrap(),
             cocktail_logo: Self::load_image("cocktail").unwrap(),
+            climbing_boulder_logo: Self::load_image("climbing_boulder2").unwrap(),
+            climbing_rope_logo: Self::load_image("climbing_rope2").unwrap(),
+            climbing_outdoor_logo: Self::load_image("climbing_outdoor").unwrap(),
             hospital_logo: Self::load_image("hospital").unwrap(),
             music_logo: Self::load_image("music_venue").unwrap(),
             font,
@@ -366,6 +373,7 @@ impl DrawMapEtl<'_> {
             temple_scientologist_logo: Self::load_image("scientology").unwrap(),
             temple_self_realization_fellowship_logo: Self::load_image("self-realization-fellowship").unwrap(),
             temple_sikh_logo: Self::load_image("sikh").unwrap(),
+            tree_logo: Self::load_image("tree").unwrap(),
             x_shift: 0.0,
             y_shift: 0.0,
         }
@@ -501,9 +509,6 @@ impl DrawMapEtl<'_> {
         let width = 58.0;
         let height = 48.0;
 
-        if let semantic::LandmarkType::Tree = landmark.landmark_type {
-            return
-        }
         if let semantic::LandmarkType::TubeEmergencyExit = landmark.landmark_type {
             return
         }
@@ -512,6 +517,9 @@ impl DrawMapEtl<'_> {
             semantic::LandmarkType::LgbtqMen => &self.lgbtq_logo,
             semantic::LandmarkType::Lgbtq => &self.lgbtq_logo,
             semantic::LandmarkType::CocktailBar => &self.cocktail_logo,
+            semantic::LandmarkType::ClimbingBoulder => &self.climbing_boulder_logo,
+            semantic::LandmarkType::ClimbingRope => &self.climbing_rope_logo,
+            semantic::LandmarkType::ClimbingOutdoor => &self.climbing_outdoor_logo,
             semantic::LandmarkType::Gym => &self.gym_logo,
             semantic::LandmarkType::Hospital => &self.hospital_logo,
             semantic::LandmarkType::MusicVenue => &self.music_logo,
@@ -528,7 +536,7 @@ impl DrawMapEtl<'_> {
             semantic::LandmarkType::TempleScientologist => &self.temple_scientologist_logo,
             semantic::LandmarkType::TempleSelfRealizationFellowship => &self.temple_self_realization_fellowship_logo,
             semantic::LandmarkType::TempleSikh => &self.temple_sikh_logo,
-            semantic::LandmarkType::Tree => todo!(),
+            semantic::LandmarkType::Tree => &self.tree_logo,
             semantic::LandmarkType::TubeEmergencyExit => todo!(),
         };
 

@@ -81,11 +81,25 @@ impl SemanticMapEtl {
         } else if Self::has_kv_pair(tags, b"emergency", b"emergency_ward_entrance")
             || Self::has_kv_pair(tags, b"healthcare", b"emergency_ward") {
             Some(LandmarkType::Hospital)
-        } else if Self::has_kv_pair(tags, b"natural", b"tree") {
+        } else if Self::has_kv_pair(tags, b"natural", b"tree")
+            && Self::has_key(tags, b"name") {
             Some(LandmarkType::Tree)
-        } else if Self::has_kv_pair(tags, b"leisure", b"fitness_centre")
-            /*|| Self::has_kv_pair(tags, b"leisure", b"sports_centre")*/ {
+        } else if Self::has_kv_pair(tags, b"leisure", b"fitness_centre") {
             Some(LandmarkType::Gym)
+        } else if Self::has_kv_pair(tags, b"climbing:toprope", b"yes")
+            || Self::has_kv_pair(tags, b"climbing:sport", b"yes")
+            || Self::has_kv_pair(tags, b"climbing:ice", b"yes") {
+            Some(LandmarkType::ClimbingRope)
+        } else if Self::has_kv_pair(tags, b"climbing:boulder", b"yes")
+            || Self::has_kv_pair(tags, b"climbing", b"bouldering") 
+            || (
+                Self::has_kv_pair(tags, b"leisure", b"sports_centre")
+                && Self::has_kv_pair(tags, b"sport", b"climbing")
+            ) {
+            Some(LandmarkType::ClimbingBoulder)
+        } else if Self::has_kv_pair(tags, b"leisure", b"pitch")
+            && Self::has_kv_pair(tags, b"sport", b"climbing") {
+            Some(LandmarkType::ClimbingOutdoor)
         } else if Self::has_kv_pair(tags, b"amenity", b"music_venue")
             || Self::has_kv_pair(tags, b"live_music", b"yes") {
             Some(LandmarkType::MusicVenue)
@@ -167,6 +181,17 @@ impl SemanticMapEtl {
                     }
                 );
             }
+
+            // Bobby Fitzpatric
+            if node.id == 5417354028 {
+                output.landmarks.push(
+                    Landmark{
+                        lon: node.lon,
+                        lat: node.lat,
+                        landmark_type: LandmarkType::CocktailBar,
+                    }
+                );
+            }
         }
     }
 
@@ -196,6 +221,7 @@ impl SemanticMapEtl {
             if (
                 Self::has_kv_pair(&way.tags, b"railway", b"subway")
                 || Self::has_kv_pair(&way.tags, b"railway", b"rail")
+                || Self::has_kv_pair(&way.tags, b"railway", b"light_rail")
             ) && Self::has_key(&way.tags, b"line") {
                 for line_tag in Self::get_strings(&way.tags, b"line") {
                     let lines = match line_tag.to_lowercase().as_str() {
@@ -210,6 +236,7 @@ impl SemanticMapEtl {
                         "jubilee" | "jubilee line" => vec![TubeLine::Jubilee],
                         "metropolitan" => vec![TubeLine::Metropolitan],
                         "metropolitan, piccadilly" => vec![TubeLine::Metropolitan, TubeLine::Piccadilly],
+                        "north london line" => vec![TubeLine::Overground],
                         "northern" | "northern line" => vec![TubeLine::Northern],
                         "northern city" => vec![TubeLine::Northern, TubeLine::HammersmithAndCity],
                         "picadilly" | "piccadilly" => vec![TubeLine::Piccadilly],
@@ -226,6 +253,32 @@ impl SemanticMapEtl {
                         });
                     }
                 }
+            } else if Self::has_kv_pair(&way.tags, b"railway", b"rail")
+                && Self::has_kv_pair(&way.tags, b"name", b"Elizabeth Line") {
+                output.tube_rails.push(TubeRail {
+                    line: TubeLine::Elizabeth,
+                    path: way.into(),
+                });
+            // } else if Self::has_kv_pair(&way.tags, b"railway", b"rail")
+            //     && (
+            //         Self::has_kv_pair(&way.tags, b"network", b"London Overground")
+            //         || Self::has_kv_pair(&way.tags, b"line", b"Lea Valley Lines")
+            //         || Self::has_kv_pair(&way.tags, b"line", b"North London Line")
+            //         || Self::has_kv_pair(&way.tags, b"line", b"North London line")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"East London Line")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"East London line")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"Hackney Downs and Cheshunt Line")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"North/West London lines")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"South Bermondsey to Horsham Line")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"South London Line")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"South London line")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"South/West London lines")
+            //         || Self::has_kv_pair(&way.tags, b"name", b"West Anglia Main Line")
+            //     ) {
+            //     output.tube_rails.push(TubeRail {
+            //         line: TubeLine::Overground,
+            //         path: way.into(),
+            //     });
             } else if Self::has_kv_pair(&way.tags, b"railway", b"rail") {
                 output.rails.push(way.into());
             }
@@ -236,6 +289,17 @@ impl SemanticMapEtl {
                         lon: way.nodes[0].lon,
                         lat: way.nodes[0].lat,
                         landmark_type,
+                    }
+                );
+            }
+
+            // Handle castle climbing separately
+            if way.id == 963992061 {
+                output.landmarks.push(
+                    Landmark{
+                        lon: way.nodes[0].lon,
+                        lat: way.nodes[0].lat,
+                        landmark_type: LandmarkType::ClimbingRope,
                     }
                 );
             }
@@ -261,6 +325,16 @@ impl SemanticMapEtl {
                         &relation.ways.iter().map(|way| way.into()).collect(),
                     )
                 );
+            }
+            if Self::has_kv_pair(&relation.tags, b"network", b"London Overground") {
+                for way in &relation.ways {
+                    if Self::has_kv_pair(&way.tags, b"railway", b"rail") {
+                        output.tube_rails.push(TubeRail {
+                            line: TubeLine::Overground,
+                            path: way.into(),
+                        });
+                    }
+                }
             }
         }
     }

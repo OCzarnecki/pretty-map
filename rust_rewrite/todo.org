@@ -4,13 +4,16 @@
 
 * DONE Draw parks, woods, bodies of water
 
-* TODO Draw tube stations
+* DONE Draw tube stations
   - [x] Draw the images
   - [x] Draw the names
 
-* TODO Combine tube stations with the same name
+* WONTDO Combine tube stations with the same name
+  - Probably not worth it? It's often useful and actual overlap happens like twice
 
 * DONE Draw tube lines in the right colours
+
+* DONE Draw DLR & Overground
 
 * TODO Draw Boroughs
 
@@ -18,15 +21,30 @@
 
 * TODO Try drawing tiny icons for churches
  - [x] hospitals
- - [p] trees
+ - [x] trees: named trees only
  - [x] temples of different faiths
- - [ ] tube station emergency exits
+ - [-] tube station emergency exits: I don't think that's cool enough anymore
  - [x] queer venues
  - [x] cocktail bars
- - [ ] bouldering spots (incl. outdoor ones)
+ - [x] bouldering spots
+ - [x] outdoor bouldering spots
+   ```
+     <tag k="barrier" v="wall"/>
+     <tag k="est_height" v="3"/>
+     <tag k="leisure" v="pitch"/>
+     <tag k="lit" v="no"/>
+     <tag k="note" v="bouldering wall"/>
+     <tag k="sport" v="climbing"/>
+   ```
+ - [-] parcour spots: cba to implement a new dataset
  - [x] gyms (leisure:fitness_centre, leisure:sports_centre)
- - [ ] 28 days later
- - [ ] parcour spots
+ - [-] 28 days later: no good datasets
  - [x] leisure:music_venue
 
 * DONE Put all colors into the config
+
+* TODO Nicer colour scheme
+
+* TODO Recalculate sizes
+
+* TODO Ship it!
