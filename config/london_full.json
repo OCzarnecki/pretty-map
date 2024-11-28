@@ -1,14 +1,14 @@
 {
     "data_path": "./planet_-0.418,51.37_0.268,51.647.osm.xz",
     "dest_path": "./test_render.png",
-    "top_left_lon": -0.297,
-    "top_left_lat": 51.599,
+    "top_left_lon": -0.30125362,
+    "top_left_lat": 51.6038084,
     "px_per_deg_lon": 58325,
     "px_per_deg_lat": 93740,
     "width_px": 23622,
-    "height_px": 17717,
+    "height_px": 16535,
     "theme": {
-        "background_color": "#fed9a6ff",
+        "background_color": "#ffebd0ff",
         "park_color": "#ccebc5ff",
         "rail_color": "#606060ff",
         "road_color": "#b0b0b0ff",

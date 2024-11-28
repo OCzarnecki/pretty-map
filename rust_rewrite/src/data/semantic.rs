@@ -11,6 +11,7 @@ pub struct SemanticMapElements {
     pub areas: Vec<Area>,
     pub landmarks: Vec<Landmark>,
     pub tube_rails: Vec<TubeRail>,
+    pub councils: Vec<Council>,
 }
 
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
@@ -232,4 +233,10 @@ pub enum TubeLine {
     Piccadilly,
     Victoria,
     WaterlooAndCity,
+}
+
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone, PartialEq)]
+pub struct Council {
+    pub name: String,
+    pub center: MapCoords,
 }

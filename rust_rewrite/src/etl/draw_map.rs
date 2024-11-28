@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::{
     data::semantic::{
-        self, Area, Landmark, MapCoords, SemanticMapElements, TransportStation
+        self, Area, Council, Landmark, MapCoords, SemanticMapElements, TransportStation
     },
     errors::Result, UserConfig,
 };
@@ -286,8 +286,9 @@ impl DrawMapEtl<'_> {
         y: f32,
         point_size: f32,
         text: &str,
+        source: &Source,
+        letter_spacing: f32,
     ) {
-        let source = &self.theme.text_color;
         let options = DrawOptions::new();
         let mut start = fk::vec2f(x, y);
         let mut ids = Vec::new();
@@ -296,7 +297,7 @@ impl DrawMapEtl<'_> {
             let id = self.font.glyph_for_char(c).unwrap();
             ids.push(id);
             positions.push(Point::new(start.x(), start.y()));
-            start += self.font.advance(id).unwrap() * point_size / 24. / 96. * 2.0;
+            start += self.font.advance(id).unwrap() * point_size / 24. / 96. * 2.0 * letter_spacing;
         }
         let total_width: f32 = positions[positions.len() - 1].x - x + point_size / 2.0;
         for position in &mut positions {
@@ -335,7 +336,15 @@ impl DrawMapEtl<'_> {
             &draw_options,
         );
 
-        self.draw_text(dt, x_center, y_center + height / 2.0 + 15.0, 20.0, &station.name);
+        self.draw_text(
+            dt,
+            x_center,
+            y_center + height / 2.0 + 15.0,
+            20.0,
+            &station.name,
+            &self.theme.text_color,
+            1.0,
+        );
         // dt.draw_image_at(x_center, y_center, &img, &DrawOptions::new());
     }
 
@@ -559,6 +568,22 @@ impl DrawMapEtl<'_> {
             &draw_options,
         );
     }
+
+    fn draw_council(&self, dt: &mut DrawTarget, council: &Council) {
+        let (x_center, y_center) = self.project_mercantor(&council.center);
+
+        self.draw_text(
+            dt,
+            x_center,
+            y_center,
+            120.0,
+            &council.name,
+            &Source::Solid(
+                SolidSource::from_unpremultiplied_argb(255, 100, 100, 100),
+            ),
+            2.0,
+        );
+    }
 }
 
 impl Etl for DrawMapEtl<'_> {
@@ -629,6 +654,9 @@ impl Etl for DrawMapEtl<'_> {
 
                 for rail in sorted_rails {
                     self.draw_tube_rail(&mut dt, &rail);
+                }
+                for council in &input.councils {
+                    self.draw_council(&mut dt, &council);
                 }
                 for station in &input.underground_stations {
                     self.draw_undergound_station(&mut dt, &station);

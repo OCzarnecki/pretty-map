@@ -1,6 +1,7 @@
-* TODO Make big roads bigger and visually distinctive
+* WONTDO Make big roads bigger and visually distinctive
   Draw them over small roads so that they don't get too big
   Follow the OSM tiers for a start: red, orange, yellow, white, footway
+  -> Again, enough going on
 
 * DONE Draw parks, woods, bodies of water
 
@@ -15,11 +16,12 @@
 
 * DONE Draw DLR & Overground
 
-* TODO Draw Boroughs
+* DONE Draw Boroughs
 
-* TODO Try drawing buildings in a very fine stroke
+* WONTDO Try drawing buildings in a very fine stroke
+  -> I think there's enough going on, especially once I start adding stuff by pen
 
-* TODO Try drawing tiny icons for churches
+* DONE Try drawing tiny icons for churches
  - [x] hospitals
  - [x] trees: named trees only
  - [x] temples of different faiths
@@ -46,5 +48,7 @@
 * TODO Nicer colour scheme
 
 * TODO Recalculate sizes
+
+* DONE Mark Meridian Place as either gay or cocktails
 
 * TODO Ship it!

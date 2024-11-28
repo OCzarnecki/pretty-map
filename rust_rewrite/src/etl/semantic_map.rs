@@ -4,15 +4,7 @@ use crate::{
     data::{
         osm::{Node, OsmId, OsmMapData, Relation, Way},
         semantic::{
-            Area,
-            AreaType,
-            Landmark,
-            LandmarkType,
-            SemanticMapElements,
-            TransportStation,
-            TransportStationType,
-            TubeLine,
-            TubeRail,
+            Area, AreaType, Council, Landmark, LandmarkType, MapCoords, SemanticMapElements, TransportStation, TransportStationType, TubeLine, TubeRail
         }
     },
     errors::Result,
@@ -182,8 +174,15 @@ impl SemanticMapEtl {
                 );
             }
 
-            // Bobby Fitzpatric
-            if node.id == 5417354028 {
+            if node.id == 5417354028 {  // Bobby Fitzpatric
+                output.landmarks.push(
+                    Landmark{
+                        lon: node.lon,
+                        lat: node.lat,
+                        landmark_type: LandmarkType::CocktailBar,
+                    }
+                );
+            } else if node.id == 264905226 {  // Meridian Place
                 output.landmarks.push(
                     Landmark{
                         lon: node.lon,
@@ -335,6 +334,26 @@ impl SemanticMapEtl {
                         });
                     }
                 }
+            }
+            if Self::has_key(&relation.tags, b"council_name") {
+                let mut avg_lat = 0.0;
+                let mut avg_lon = 0.0;
+                let mut count = 0.0;
+                for way in &relation.ways {
+                    for node in &way.nodes {
+                        avg_lat += node.lat;
+                        avg_lon += node.lon;
+                        count += 1.0;
+                    }
+                }
+                avg_lat /= count;
+                avg_lon /= count;
+                output.councils.push(
+                    Council {
+                        name: Self::get_string(&relation.tags, b"council_name").unwrap(),
+                        center: MapCoords { lat: avg_lat, lon: avg_lon },
+                    }
+                );
             }
         }
     }
