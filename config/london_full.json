@@ -9,10 +9,10 @@
     "height_px": 16535,
     "theme": {
         "background_color": "#eeeceaff",
-        "park_color": "#ccebc5ff",
+        "park_color": "#ccd8c9ff",
         "rail_color": "#606060ff",
-        "road_color": "#b0b0b0ff",
+        "road_color": "#a891adff",
         "text_color": "#000000ff",
-        "water_color": "#b3cde3ff"
+        "water_color": "#85c4c9ff"
     }
 }
