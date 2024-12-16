@@ -11,7 +11,7 @@ log = { version = "0.4.21", features = ["kv"] }
 pathfinder_geometry = { version = "0.5" }
 png = "0.17.13"
 quick-xml = "0.31.0"
-raqote = "0.8.3"
+raqote = { path = "../../raqote" }
 regex = "1.10.5"
 rkyv = "=0.7.44"
 serde = { version = "1.0.197", features = ["derive"] }

@@ -44,6 +44,9 @@ pub struct Theme<'a> {
     pub park_color: Source<'a>,
 
     #[serde(deserialize_with = "deserialize")]
+    pub wood_color: Source<'a>,
+
+    #[serde(deserialize_with = "deserialize")]
     pub road_color: Source<'a>,
 
     #[serde(deserialize_with = "deserialize")]
@@ -51,6 +54,9 @@ pub struct Theme<'a> {
 
     #[serde(deserialize_with = "deserialize")]
     pub text_color: Source<'a>,
+
+    #[serde(deserialize_with = "deserialize")]
+    pub council_name_color: Source<'a>,
 
     #[serde(deserialize_with = "deserialize")]
     pub water_color: Source<'a>,
@@ -104,6 +110,7 @@ pub struct DrawMapEtl <'a> {
     dlr_logo: OwnedImage,
     elizabeth_line_logo: OwnedImage,
     lgbtq_logo: OwnedImage,
+    lgbtq_men_logo: OwnedImage,
     cocktail_logo: OwnedImage,
     climbing_boulder_logo: OwnedImage,
     climbing_rope_logo: OwnedImage,
@@ -297,7 +304,7 @@ impl DrawMapEtl<'_> {
             let id = self.font.glyph_for_char(c).unwrap();
             ids.push(id);
             positions.push(Point::new(start.x(), start.y()));
-            start += self.font.advance(id).unwrap() * point_size / 24. / 96. * 2.0 * letter_spacing;
+            start += self.font.advance(id).unwrap() * point_size / 24. / 96. * 2.0 + fk::vec2f(point_size * letter_spacing, 0.0);
         }
         let total_width: f32 = positions[positions.len() - 1].x - x + point_size / 2.0;
         for position in &mut positions {
@@ -339,11 +346,11 @@ impl DrawMapEtl<'_> {
         self.draw_text(
             dt,
             x_center,
-            y_center + height / 2.0 + 15.0,
-            20.0,
+            y_center + height / 2.0 + 35.0,
+            40.0,
             &station.name,
             &self.theme.text_color,
-            1.0,
+            0.0,
         );
         // dt.draw_image_at(x_center, y_center, &img, &DrawOptions::new());
     }
@@ -359,11 +366,12 @@ impl DrawMapEtl<'_> {
             overground_logo: Self::load_image("overground").unwrap(),
             elizabeth_line_logo: Self::load_image("elizabeth").unwrap(),
             dlr_logo: Self::load_image("dlr").unwrap(),
-            gym_logo: Self::load_image("gym").unwrap(),
+            gym_logo: Self::load_image("gym1").unwrap(),
             lgbtq_logo: Self::load_image("lgbtq").unwrap(),
+            lgbtq_men_logo: Self::load_image("gay_men").unwrap(),
             cocktail_logo: Self::load_image("cocktail").unwrap(),
-            climbing_boulder_logo: Self::load_image("climbing_boulder2").unwrap(),
-            climbing_rope_logo: Self::load_image("climbing_rope2").unwrap(),
+            climbing_boulder_logo: Self::load_image("climbing_boulder3").unwrap(),
+            climbing_rope_logo: Self::load_image("climbing_rope1").unwrap(),
             climbing_outdoor_logo: Self::load_image("climbing_outdoor").unwrap(),
             hospital_logo: Self::load_image("hospital").unwrap(),
             music_logo: Self::load_image("music_venue").unwrap(),
@@ -371,7 +379,7 @@ impl DrawMapEtl<'_> {
             theme: &user_config.theme,
             temple_aetherius_society_logo: Self::load_image("aetherius_society").unwrap(),
             temple_buddhist_logo: Self::load_image("buddhist-stupa").unwrap(),
-            temple_christian_logo: Self::load_image("crucifix").unwrap(),
+            temple_christian_logo: Self::load_image("crucifix1").unwrap(),
             temple_hindu_logo: Self::load_image("hindu-om").unwrap(),
             temple_humanist_logo: Self::load_image("humanism").unwrap(),
             temple_jain_logo: Self::load_image("janism").unwrap(),
@@ -506,6 +514,7 @@ impl DrawMapEtl<'_> {
                 &raquote_path,
                 match area.area_type {
                     semantic::AreaType::Park => &self.theme.park_color,
+                    semantic::AreaType::Wood => &self.theme.wood_color,
                     semantic::AreaType::Water => &self.theme.water_color,
                 },
                 &draw_options,
@@ -523,7 +532,7 @@ impl DrawMapEtl<'_> {
         }
 
         let logo = match landmark.landmark_type {
-            semantic::LandmarkType::LgbtqMen => &self.lgbtq_logo,
+            semantic::LandmarkType::LgbtqMen => &self.lgbtq_men_logo,
             semantic::LandmarkType::Lgbtq => &self.lgbtq_logo,
             semantic::LandmarkType::CocktailBar => &self.cocktail_logo,
             semantic::LandmarkType::ClimbingBoulder => &self.climbing_boulder_logo,
@@ -581,7 +590,7 @@ impl DrawMapEtl<'_> {
             &Source::Solid(
                 SolidSource::from_unpremultiplied_argb(255, 100, 100, 100),
             ),
-            2.0,
+            0.7,
         );
     }
 }
@@ -656,13 +665,13 @@ impl Etl for DrawMapEtl<'_> {
                     self.draw_tube_rail(&mut dt, &rail);
                 }
                 for council in &input.councils {
-                    self.draw_council(&mut dt, &council);
+                    self.draw_council(&mut dt, council);
                 }
                 for station in &input.underground_stations {
-                    self.draw_undergound_station(&mut dt, &station);
+                    self.draw_undergound_station(&mut dt, station);
                 }
                 for landmark in &input.landmarks {
-                    self.draw_landmark(&mut dt, &landmark);
+                    self.draw_landmark(&mut dt, landmark);
                 }
                 dt_col.push(dt);
             }

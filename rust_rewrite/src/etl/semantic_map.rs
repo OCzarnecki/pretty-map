@@ -61,10 +61,10 @@ impl SemanticMapEtl {
 
     fn landmark_type_from_tags(&mut self, tags: &HashMap<Vec<u8>, Vec<u8>>) -> Option<LandmarkType> {
         if Self::has_kv_pair(tags, b"lgbtq:men", b"only")
-            || Self::has_kv_pair(tags, b"lgbtq:men", b"primary")
-            || Self::has_kv_pair(tags, b"gay", b"yes") {
+            || Self::has_kv_pair(tags, b"lgbtq:men", b"primary") {
                 Some(LandmarkType::LgbtqMen)
-        } else if Self::has_kv_pair(tags, b"lgbtq", b"primary") {
+        } else if Self::has_kv_pair(tags, b"lgbtq", b"primary")
+            || Self::has_kv_pair(tags, b"gay", b"yes") {
             Some(LandmarkType::Lgbtq)
         } else if Self::has_kv_pair(tags, b"bar", b"cocktail")
             || Self::has_kv_pair(tags, b"cocktails", b"yes")
@@ -194,25 +194,37 @@ impl SemanticMapEtl {
         }
     }
 
+    fn area_type_from_tags(&mut self, tags: &HashMap<Vec<u8>, Vec<u8>>) -> Option<AreaType> {
+        if Self::has_kv_pair(tags, b"leisure", b"wood")
+            || Self::has_kv_pair(tags, b"landuse", b"forest")
+            || Self::has_kv_pair(tags, b"natural", b"wood") {
+            Some(AreaType::Wood)
+        }
+        else if Self::has_kv_pair(tags, b"leisure", b"park")
+            || Self::has_kv_pair(tags, b"landuse", b"grass")
+            || Self::has_kv_pair(tags, b"natural", b"heath")
+            || Self::has_kv_pair(tags, b"leisure", b"garden") {
+            Some(AreaType::Park)
+        }
+        else if Self::has_key(tags, b"water") 
+            || Self::has_kv_pair(tags, b"natural", b"water")
+        {
+            Some(AreaType::Water)
+        }
+        else {
+            None
+        }
+    }
+
     fn process_ways(&mut self, output: &mut SemanticMapElements, ways: &HashMap<OsmId, Way>) {
         for way in ways.values() {
             if Self::has_key(&way.tags, b"highway") {
                 output.roads.push(way.into());
             }
-            if Self::has_kv_pair(&way.tags, b"leisure", b"park") {
+            if let Some(area_type) = self.area_type_from_tags(&way.tags) {
                 output.areas.push(
                     Area::new(
-                        AreaType::Park,
-                        &vec![way.into()],
-                    )
-                );
-            }
-            if Self::has_key(&way.tags, b"water") 
-                || Self::has_kv_pair(&way.tags, b"natural", b"water")
-            {
-                output.areas.push(
-                    Area::new(
-                        AreaType::Water,
+                        area_type,
                         &vec![way.into()],
                     )
                 );
@@ -307,20 +319,10 @@ impl SemanticMapEtl {
 
     fn process_relations(&mut self, output: &mut SemanticMapElements, relations: &HashMap<OsmId, Relation>) {
         for relation in relations.values() {
-            if Self::has_kv_pair(&relation.tags, b"leisure", b"park") {
+            if let Some(area_type) = self.area_type_from_tags(&relation.tags) {
                 output.areas.push(
                     Area::new(
-                        AreaType::Park,
-                        &relation.ways.iter().map(|way| way.into()).collect(),
-                    )
-                );
-            }
-            if Self::has_key(&relation.tags, b"water")
-                || Self::has_kv_pair(&relation.tags, b"natural", b"water")
-            {
-                output.areas.push(
-                    Area::new(
-                        AreaType::Water,
+                        area_type,
                         &relation.ways.iter().map(|way| way.into()).collect(),
                     )
                 );
@@ -336,6 +338,12 @@ impl SemanticMapEtl {
                 }
             }
             if Self::has_key(&relation.tags, b"council_name") {
+                let council_name = Self::get_string(&relation.tags, b"council_name").unwrap();
+                if council_name == "London Borough of Richmond upon Thames"
+                    || council_name == "Bexley Council"
+                    || council_name == "Barking and Dagenham Council" {
+                        continue;
+                }
                 let mut avg_lat = 0.0;
                 let mut avg_lon = 0.0;
                 let mut count = 0.0;
@@ -350,7 +358,7 @@ impl SemanticMapEtl {
                 avg_lon /= count;
                 output.councils.push(
                     Council {
-                        name: Self::get_string(&relation.tags, b"council_name").unwrap(),
+                        name: council_name,
                         center: MapCoords { lat: avg_lat, lon: avg_lon },
                     }
                 );

@@ -25,4 +25,4 @@ for x in range(grid_size[0]):
         combined_image.paste(images[x][y], (x_pos, y_pos))
 
 # Save the combined image
-combined_image.save(f"{DIR}combined_output.png")
+combined_image.save(f"{DIR}combined_output.tiff")

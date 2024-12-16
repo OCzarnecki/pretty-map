@@ -9,10 +9,12 @@
     "height_px": 16535,
     "theme": {
         "background_color": "#eeeceaff",
-        "park_color": "#ccd8c9ff",
+        "park_color": "#ccebc5ff",
+        "wood_color": "#accba5ff",
         "rail_color": "#606060ff",
-        "road_color": "#a891adff",
+        "road_color": "#c0c0c0ff",
         "text_color": "#000000ff",
-        "water_color": "#85c4c9ff"
+        "council_name_color": "#646464ff",
+        "water_color": "#b3cde3ff"
     }
 }

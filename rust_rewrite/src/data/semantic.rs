@@ -111,13 +111,13 @@ impl Area {
             }
         }
 
-        fn find_unseen(seen: &HashSet<Vec<MapCoords>>, ways: &Vec<Path>) -> Path {
+        fn find_unseen(seen: &HashSet<Vec<MapCoords>>, ways: &Vec<Path>) -> Option<Path> {
             for way in ways {
                 if !seen.contains(way) {
-                    return way.clone();
+                    return Some(way.clone());
                 }
             }
-            panic!("Illegal state: all ways have been seen");
+            None
         }
 
         if unordered_ways.is_empty() {
@@ -144,10 +144,13 @@ impl Area {
                     continue;
                 }
             }
-            let next_way = find_unseen(&seen, unordered_ways);
-            link_node = next_way[0].clone();
-            ordered.push(vec![next_way.clone()]);
-            seen.insert(next_way);
+            if let Some(next_way) = find_unseen(&seen, unordered_ways) {
+                link_node = next_way[0].clone();
+                ordered.push(vec![next_way.clone()]);
+                seen.insert(next_way);
+            } else {
+                break;
+            }
         }
 
         ordered.iter().map(|group| group.concat()).collect()
@@ -164,6 +167,7 @@ impl Area {
 #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize, Debug, Clone)]
 pub enum AreaType {
     Park,
+    Wood,
     Water,
 }
 
