@@ -1,3 +1,5 @@
+![Map of London](https://raw.githubusercontent.com/OCzarnecki/pretty-map/master/thumbnail.png)
+
 # Rendering a pretty-ish map of London into PNG
 
 This repository contains all the code I used in working on my map project. It is more for documentation
