@@ -16,3 +16,5 @@ If you do want to use it, you will need to
 # Licence
 
 The source code in this repository ("the source code") is released under the [GNU AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html#license-text) and images as well as other digital artifacts created with the source code are covered by the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) license. If you have a use in mind which is not permitted by these licenses, get in touch!
+
+The map is generated based on Open Street Map data, which is available under the [Open Database License](https://www.openstreetmap.org/copyright). Copyright OpenStreetMap Contributors.
